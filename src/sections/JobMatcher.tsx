@@ -582,4 +582,12 @@ export function JobMatcher() {
                     <Bookmark className="w-4 h-4 mr-2" />
                     Save
                   </Button>
-                <
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
