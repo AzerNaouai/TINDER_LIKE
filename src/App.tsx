@@ -86,11 +86,20 @@ function AppContent() {
   );
 }
 
+import { useMockDataInternal, MockDataContext } from '@/hooks/useMockData';
+
+function MockDataProvider({ children }: { children: React.ReactNode }) {
+  const data = useMockDataInternal();
+  return <MockDataContext.Provider value={data}>{children}</MockDataContext.Provider>;
+}
+
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <MockDataProvider>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </MockDataProvider>
   );
 }
 

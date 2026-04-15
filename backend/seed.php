@@ -484,6 +484,26 @@ function seedCompanyJobs($conn, $companyId) {
             'salary_max' => 40000,
             'experience_level' => 'Junior',
             'skills' => ['JavaScript', 'React', 'CSS', 'HTML']
+        ],
+        [
+            'title' => 'Cloud Architect',
+            'description' => 'Lead the architectural design and implementation of highly scalable cloud solutions using modern infrastructure as code.',
+            'location' => 'Seattle, WA',
+            'employment_type' => 'Full-time',
+            'salary_min' => 180000,
+            'salary_max' => 240000,
+            'experience_level' => 'Senior',
+            'skills' => ['AWS', 'System Design', 'Kubernetes', 'Terraform']
+        ],
+        [
+            'title' => 'Data Scientist',
+            'description' => 'Join our Data Science team to analyze complex healthcare datasets and build predictive models to improve patient care.',
+            'location' => 'Boston, MA',
+            'employment_type' => 'Full-time',
+            'salary_min' => 140000,
+            'salary_max' => 180000,
+            'experience_level' => 'Senior',
+            'skills' => ['Python', 'Machine Learning', 'SQL', 'Pandas']
         ]
     ];
     

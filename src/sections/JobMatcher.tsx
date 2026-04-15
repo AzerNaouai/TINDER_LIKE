@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useMockData } from '@/hooks/useMockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,9 +36,9 @@ export function JobMatcher() {
   const [localSwipedJobs, setLocalSwipedJobs] = useState<SwipedJob[]>([]);
   const [showDetail, setShowDetail] = useState<Job | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  const [activeTab, setActiveTab] = useState('discover');
   const [direction, setDirection] = useState<'left' | 'right' | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -57,11 +57,18 @@ export function JobMatcher() {
 
   const matches = getJobMatches();
 
-  // Filter out already swiped jobs
+  // Snapshot the initial swiped IDs so the array doesn't shrink during active swiping
+  // which was causing currentIndex to skip elements
+  const initialSwipedIds = useRef(swipedJobs.map(s => s.jobId)).current;
+  const initialAppliedIds = useRef(applications.map(a => a.jobId)).current;
+
+  // Filter out already swiped jobs (from previous sessions) AND jobs already applied for
   const availableJobs = useMemo(() => {
-    const swipedIds = allSwipedJobs.map(s => s.jobId);
-    return matches.filter(m => !swipedIds.includes(m.job.id));
-  }, [matches, allSwipedJobs]);
+    return matches.filter(m =>
+      !initialSwipedIds.includes(m.job.id) &&
+      !initialAppliedIds.includes(m.job.id)
+    );
+  }, [matches, initialSwipedIds, initialAppliedIds]);
 
   // Get liked jobs
   const likedJobs = useMemo(() => {
@@ -71,9 +78,14 @@ export function JobMatcher() {
 
   const currentJob = availableJobs[currentIndex];
 
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
   const handleSwipe = async (liked: boolean) => {
     if (!currentJob || isAnimating) return;
-    
+
     setIsAnimating(true);
     setDirection(liked ? 'right' : 'left');
 
@@ -96,21 +108,31 @@ export function JobMatcher() {
   };
 
   const handleApply = async (jobId: string) => {
-    alert('Apply button clicked for job: ' + jobId);
-    console.log('Applying to job:', jobId);
+    // Prevent double-applying
+    if (applications.some(app => app.jobId === jobId)) {
+      showToast('You have already applied to this job.', 'error');
+      return;
+    }
+
+    const jobMatch = matches.find(m => m.job.id === jobId);
+    const job = jobMatch?.job;
+    const company = job ? getCompany(job) : null;
+
     try {
       const { error } = await applyToJob(jobId);
       if (error) {
         console.error('Application error:', error);
-        alert('Failed to apply: ' + error.message);
+        showToast('Failed to submit application. Please try again.', 'error');
       } else {
-        console.log('Application successful');
-        alert('Application submitted successfully!');
+        const msg = job
+          ? `Applied to ${job.title} at ${company?.name || 'the company'}! ✓`
+          : 'Application submitted successfully! ✓';
+        showToast(msg, 'success');
         setShowDetail(null);
       }
     } catch (err) {
       console.error('Unexpected error:', err);
-      alert('An unexpected error occurred: ' + err);
+      showToast('An unexpected error occurred. Please try again.', 'error');
     }
   };
 
@@ -138,31 +160,29 @@ export function JobMatcher() {
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTab !== 'discover') return;
       if (e.key === 'ArrowLeft') handleSwipe(false);
       if (e.key === 'ArrowRight') handleSwipe(true);
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentJob, isAnimating, activeTab]);
+  }, [currentJob, isAnimating]);
 
   const renderJobCard = (jobMatch: JobMatch, isPreview: boolean = false) => {
     const job = jobMatch.job;
     const company = getCompany(job);
 
     return (
-      <div 
+      <div
         className={`relative w-full max-w-md mx-auto ${isPreview ? '' : 'h-[600px]'}`}
         style={{ touchAction: 'none' }}
       >
-        <Card 
-          className={`absolute inset-0 overflow-hidden border-2 transition-all duration-300 ${
-            direction === 'right' && !isPreview
-              ? 'translate-x-full rotate-12 opacity-0' 
+        <Card
+          className={`absolute inset-0 overflow-hidden border-2 transition-all duration-300 ${direction === 'right' && !isPreview
+              ? 'translate-x-full rotate-12 opacity-0'
               : direction === 'left' && !isPreview
-              ? '-translate-x-full -rotate-12 opacity-0'
-              : ''
-          } ${!isPreview ? 'shadow-2xl' : ''}`}
+                ? '-translate-x-full -rotate-12 opacity-0'
+                : ''
+            } ${!isPreview ? 'shadow-2xl' : ''}`}
         >
           {/* Company Header Image */}
           <div className="h-32 bg-gradient-to-br from-primary/30 via-accent/20 to-background relative">
@@ -297,7 +317,7 @@ export function JobMatcher() {
                 </button>
               </div>
               <p className="text-center text-xs text-muted-foreground mt-3">
-                Press ← to skip, → to like
+                Press ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â to skip, ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ to like
               </p>
             </div>
           )}
@@ -305,7 +325,7 @@ export function JobMatcher() {
 
         {/* Next Card Preview */}
         {!isPreview && availableJobs[currentIndex + 1] && (
-          <div 
+          <div
             className="absolute inset-0 scale-95 opacity-50 -z-10"
             style={{ transform: 'translateY(10px) scale(0.95)' }}
           >
@@ -318,39 +338,38 @@ export function JobMatcher() {
 
   return (
     <div className="animate-slide-up space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      {/* In-App Toast Notification */}
+      {toast && (
+        <div
+          className={`fixed top-6 right-6 z-[100] flex items-center gap-3 px-5 py-4 rounded-xl shadow-2xl border animate-slide-up max-w-sm ${toast.type === 'success'
+              ? 'bg-green-900/90 border-green-500/40 text-green-100'
+              : 'bg-red-900/90 border-red-500/40 text-red-100'
+            }`}
+        >
+          {toast.type === 'success'
+            ? <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0" />
+            : <X className="w-5 h-5 text-red-400 flex-shrink-0" />}
+          <p className="text-sm font-medium">{toast.message}</p>
+        </div>
+      )}
+
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">Job Matcher</h2>
+            <h2 className="text-2xl font-bold">Discover Jobs</h2>
             <p className="text-muted-foreground">
-              {activeTab === 'discover' 
-                ? `${availableJobs.length} jobs waiting for you`
-                : `${likedJobs.length} jobs you liked`
-              }
+              {availableJobs.length} jobs waiting for you
             </p>
           </div>
           <div className="flex gap-2">
-            {activeTab === 'discover' && (
-              <Button variant="outline" size="sm" onClick={() => setShowFilters(true)}>
-                <SlidersHorizontal className="w-4 h-4 mr-2" />
-                Filters
-              </Button>
-            )}
-            <TabsList>
-              <TabsTrigger value="discover">Discover</TabsTrigger>
-              <TabsTrigger value="matches">
-                Liked
-                {likedJobs.length > 0 && (
-                  <span className="ml-2 px-1.5 py-0.5 text-xs bg-primary text-primary-foreground rounded-full">
-                    {likedJobs.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
+            <Button variant="outline" size="sm" onClick={() => setShowFilters(true)}>
+              <SlidersHorizontal className="w-4 h-4 mr-2" />
+              Filters
+            </Button>
           </div>
         </div>
 
-        <TabsContent value="discover" className="mt-0">
+        <div className="mt-0">
           {currentJob ? (
             <div className="relative">
               {/* Undo Button */}
@@ -375,12 +394,9 @@ export function JobMatcher() {
               </div>
               <h3 className="text-xl font-semibold mb-2">No more jobs</h3>
               <p className="text-muted-foreground mb-6">
-                You've seen all available jobs. Check your matches or adjust your filters.
+                You've seen all available jobs. Check your filters.
               </p>
               <div className="flex justify-center gap-3">
-                <Button variant="outline" onClick={() => setActiveTab('matches')}>
-                  View Matches
-                </Button>
                 <Button onClick={() => { setLocalSwipedJobs([]); setCurrentIndex(0); }}>
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Start Over
@@ -388,100 +404,8 @@ export function JobMatcher() {
               </div>
             </div>
           )}
-        </TabsContent>
-
-        <TabsContent value="matches" className="mt-0">
-          {likedJobs.length > 0 ? (
-            <div className="space-y-4">
-              {likedJobs.map((match) => {
-                const job = match.job;
-                const company = getCompany(job);
-                const hasApplied = applications.some(app => app.jobId === job.id);
-
-                return (
-                  <Card key={job.id} className="card-hover">
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                          {company?.logo ? (
-                            <img src={company.logo} alt={company.name} className="w-10 h-10 rounded-lg object-cover" />
-                          ) : (
-                            <Building2 className="w-7 h-7 text-muted-foreground" />
-                          )}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-semibold truncate">{job.title}</h4>
-                            <Badge className={`${getMatchColor(match.compatibilityScore)} border`}>
-                              <Star className="w-3 h-3 mr-1 fill-current" />
-                              {match.compatibilityScore}% Match
-                            </Badge>
-                            {hasApplied && (
-                              <Badge variant="secondary" className="bg-green-500/20 text-green-400">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Applied
-                              </Badge>
-                            )}
-                          </div>
-
-                          <p className="text-sm text-muted-foreground mb-2">
-                            {company?.name} • {job.location.remote ? 'Remote' : job.location.city}
-                          </p>
-
-                          <div className="flex flex-wrap gap-2 mb-3">
-                            {job.skills.slice(0, 4).map((skill, i) => (
-                              <span key={i} className="text-xs px-2 py-1 rounded-full bg-muted">
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <span>Liked {allSwipedJobs.find((s: any) => s.jobId === job.id)?.timestamp?.toLocaleDateString()}</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                          {!hasApplied ? (
-                            <Button size="sm" onClick={() => handleApply(job.id)}>
-                              <Send className="w-4 h-4 mr-2" />
-                              Apply
-                            </Button>
-                          ) : (
-                            <Button size="sm" variant="secondary" disabled>
-                              <CheckCircle className="w-4 h-4 mr-2" />
-                              Applied
-                            </Button>
-                          )}
-                          <Button variant="outline" size="sm" onClick={() => setShowDetail(job)}>
-                            <Info className="w-4 h-4 mr-2" />
-                            Details
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-20">
-              <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
-                <Heart className="w-12 h-12 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">No matches yet</h3>
-              <p className="text-muted-foreground mb-6">
-                Start swiping to find jobs you like. Right swipe to add them here.
-              </p>
-              <Button onClick={() => setActiveTab('discover')}>
-                Start Swiping
-              </Button>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
-
+        </div>
+      </div>
       {/* Job Detail Dialog */}
       <Dialog open={!!showDetail} onOpenChange={() => setShowDetail(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -495,7 +419,7 @@ export function JobMatcher() {
                   <div>
                     <DialogTitle className="text-2xl">{showDetail.title}</DialogTitle>
                     <DialogDescription className="text-lg">
-                      {getCompany(showDetail).name} • {showDetail.location.city || 'Remote'}
+                      {getCompany(showDetail).name}  {showDetail.location.city || 'Remote'}
                     </DialogDescription>
                   </div>
                 </div>

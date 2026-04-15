@@ -34,7 +34,9 @@ import {
   Play,
   Trophy,
   BarChart3,
+  Heart,
 } from 'lucide-react';
+import { LikedJobs } from './LikedJobs';
 import { CVGenerator } from './CVGenerator';
 import { JobMatcher } from './JobMatcher';
 import { QuizSystem } from './QuizSystem';
@@ -279,7 +281,8 @@ export function JobSeekerDashboard() {
           <nav className="space-y-1">
             {[
               { id: 'overview', label: 'Overview', icon: TrendingUp },
-              { id: 'jobs', label: 'Job Matches', icon: Search },
+              { id: 'jobs', label: 'Discover Jobs', icon: Search },
+              { id: 'liked', label: 'Liked Jobs', icon: Heart },
               { id: 'statistics', label: 'Statistics', icon: BarChart3 },
               { id: 'cv', label: 'CV Generator', icon: FileText },
               { id: 'badges', label: 'Quizzes & Badges', icon: Award },
@@ -337,6 +340,7 @@ export function JobSeekerDashboard() {
         <div className="p-6 lg:p-8 pt-20 lg:pt-8">
           {activeSection === 'overview' && renderOverview()}
           {activeSection === 'jobs' && <JobMatcher />}
+          {activeSection === 'liked' && <LikedJobs />}
           {activeSection === 'statistics' && <Statistics />}
           {activeSection === 'cv' && <CVGenerator />}
           {activeSection === 'badges' && <QuizSystem />}
