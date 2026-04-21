@@ -264,3 +264,246 @@ export const getUserApplications = async (userId: string) => {
     };
   }
 };
+
+// Profile management
+export const saveProfile = async (userId: string, profileData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/profiles/${userId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profileData),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to save profile'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const addSkill = async (userId: string, skillData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/skills`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...skillData }),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to add skill'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const addExperience = async (userId: string, experienceData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/experience`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...experienceData }),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to add experience'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const addEducation = async (userId: string, educationData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/education`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, ...educationData }),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to add education'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const deleteSkill = async (skillId: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/skills/${skillId}`, {
+      method: 'DELETE',
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to delete skill'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const deleteExperience = async (experienceId: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/experience/${experienceId}`, {
+      method: 'DELETE',
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to delete experience'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const deleteEducation = async (educationId: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/education/${educationId}`, {
+      method: 'DELETE',
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to delete education'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const updateSkill = async (skillId: string, skillData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/skills/${skillId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(skillData),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to update skill'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const updateExperience = async (experienceId: string, experienceData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/experience/${experienceId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(experienceData),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to update experience'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const updateEducation = async (educationId: string, educationData: any) => {
+  try {
+    const response = await fetch(`${API_BASE}/education/${educationId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(educationData),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to update education'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const getUserSkills = async (userId: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/users/${userId}/skills`);
+    const data = await response.json();
+    return {
+      data: data.skills || [],
+      error: response.ok ? null : new Error(data.error || 'Failed to fetch skills'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const getUserExperience = async (userId: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/users/${userId}/experience`);
+    const data = await response.json();
+    return {
+      data: data.experience || [],
+      error: response.ok ? null : new Error(data.error || 'Failed to fetch experience'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const getUserEducation = async (userId: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/users/${userId}/education`);
+    const data = await response.json();
+    return {
+      data: data.education || [],
+      error: response.ok ? null : new Error(data.error || 'Failed to fetch education'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};

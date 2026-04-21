@@ -355,10 +355,25 @@ class ApiRouter
         $body = $this->getBody();
         $profileModel = new \App\Models\Profile();
 
-        if ($profileModel->updateProfile($params['id'], $body)) {
-            $this->sendResponse(['message' => 'Profile updated'], 200);
+        // Check if profile exists for this user
+        $profile = $profileModel->getByUserId($params['id']);
+        
+        if ($profile) {
+            // Update existing profile
+            if ($profileModel->updateProfile($profile['id'], $body)) {
+                $this->sendResponse(['message' => 'Profile updated'], 200);
+            } else {
+                $this->sendError(400, 'Failed to update profile');
+            }
         } else {
-            $this->sendError(400, 'Failed to update profile');
+            // Create new profile
+            try {
+                $body['user_id'] = $params['id'];
+                $profileId = $profileModel->createProfile($body);
+                $this->sendResponse(['id' => $profileId, 'message' => 'Profile created'], 201);
+            } catch (Exception $e) {
+                $this->sendError(400, $e->getMessage());
+            }
         }
     }
 

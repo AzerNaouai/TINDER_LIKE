@@ -19,7 +19,7 @@ export const options = {
 };
 
 export default function () {
-    const res = http.get('http://127.0.0.1:8002/jobs');
+    const res = http.get('http://127.0.0.1:8000/jobs');
     check(res, {
         'status is 200': (r) => r.status === 200,
         'has jobs key': (r) => r.body ? r.body.includes('jobs') : false,

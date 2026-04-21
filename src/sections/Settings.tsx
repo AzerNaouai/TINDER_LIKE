@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMockData } from '@/hooks/useMockData';
+import { saveProfile, addSkill, addExperience, addEducation } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -110,10 +111,34 @@ export function Settings() {
     setHasChanges(true);
   };
 
-  const handleSave = () => {
-    // In a real app, this would save to the backend
-    setHasChanges(false);
-    // Show success toast
+  const handleSave = async () => {
+    if (!user?.id) return;
+
+    const profileData = {
+      headline: formData.headline,
+      summary: formData.summary,
+      phone: formData.phone,
+      linkedin: formData.linkedIn,
+      portfolio: formData.portfolio,
+      city: formData.city,
+      region: formData.region,
+      country: formData.country,
+      remote: formData.remote,
+      salary_min: formData.salaryMin,
+      salary_max: formData.salaryMax,
+      currency: formData.currency,
+      job_types: formData.jobTypes,
+      industries: formData.industries,
+      company_sizes: formData.companySizes,
+    };
+
+    const result = await saveProfile(user.id, profileData);
+    if (result.error) {
+      alert('Failed to save profile: ' + result.error.message);
+    } else {
+      setHasChanges(false);
+      alert('Profile saved successfully!');
+    }
   };
 
   const handleReset = () => {
