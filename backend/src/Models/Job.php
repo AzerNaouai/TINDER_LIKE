@@ -60,7 +60,94 @@ class Job extends BaseModel
             $conditions['location'] = $filters['location'];
         }
 
-        return $this->getAll($conditions, ['created_at DESC']);
+        $jobs = $this->getAll($conditions, ['created_at DESC']);
+        
+        // Transform PostgreSQL arrays to PHP arrays
+        return array_map(function($job) {
+            return $this->transformJob($job);
+        }, $jobs);
+    }
+    
+    /**
+     * Transform job data from database format to API format
+     */
+    private function transformJob(array $job): array
+    {
+        // Convert PostgreSQL arrays to PHP arrays
+        if (isset($job['skills']) && is_string($job['skills'])) {
+            $job['skills'] = $this->parsePostgresArray($job['skills']);
+        } else {
+            $job['skills'] = [];
+        }
+        
+        if (isset($job['requirements']) && is_string($job['requirements'])) {
+            $job['requirements'] = $this->parsePostgresArray($job['requirements']);
+        } else {
+            $job['requirements'] = [];
+        }
+        
+        if (isset($job['responsibilities']) && is_string($job['responsibilities'])) {
+            $job['responsibilities'] = $this->parsePostgresArray($job['responsibilities']);
+        } else {
+            $job['responsibilities'] = [];
+        }
+        
+        // Structure location data
+        $job['location'] = [
+            'city' => $job['city'] ?? null,
+            'region' => $job['region'] ?? null,
+            'country' => $job['country'] ?? null,
+            'remote' => (bool)($job['remote'] ?? false),
+            'hybrid' => (bool)($job['hybrid'] ?? false),
+        ];
+        
+        // Structure salary data
+        if (isset($job['salary_min']) && isset($job['salary_max'])) {
+            $job['salary'] = [
+                'min' => (int)$job['salary_min'],
+                'max' => (int)$job['salary_max'],
+                'currency' => $job['salary_currency'] ?? 'USD',
+                'period' => $job['salary_period'] ?? 'yearly',
+            ];
+        }
+        
+        // Ensure required fields have defaults
+        $job['type'] = $job['job_type'] ?? 'full-time';
+        $job['experienceLevel'] = $job['experience_level'] ?? 'mid';
+        $job['companyId'] = $job['company_id'];
+        $job['views'] = (int)($job['views'] ?? 0);
+        $job['applications'] = (int)($job['applications_count'] ?? 0);
+        $job['industry'] = $job['industry'] ?? 'Technology';
+        
+        // Clean up old fields
+        unset($job['city'], $job['region'], $job['country'], $job['remote'], $job['hybrid']);
+        unset($job['salary_min'], $job['salary_max'], $job['salary_currency'], $job['salary_period']);
+        unset($job['job_type'], $job['experience_level'], $job['company_id'], $job['applications_count']);
+        
+        return $job;
+    }
+    
+    /**
+     * Parse PostgreSQL array format to PHP array
+     */
+    private function parsePostgresArray(?string $pgArray): array
+    {
+        if (empty($pgArray)) {
+            return [];
+        }
+        
+        // Remove curly braces
+        $pgArray = trim($pgArray, '{}');
+        
+        if (empty($pgArray)) {
+            return [];
+        }
+        
+        // Split by comma and clean up
+        $items = explode(',', $pgArray);
+        return array_map(function($item) {
+            return trim($item, '" ');
+        }, $items);
     }
 
     /**

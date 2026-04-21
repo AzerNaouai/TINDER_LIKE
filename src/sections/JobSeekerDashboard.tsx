@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useMockData } from '@/hooks/useMockData';
+import { useData } from '@/hooks/useData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -35,6 +35,7 @@ import {
   Trophy,
   BarChart3,
   Heart,
+  Sparkles,
 } from 'lucide-react';
 import { LikedJobs } from './LikedJobs';
 import { CVGenerator } from './CVGenerator';
@@ -45,9 +46,16 @@ import { Statistics } from './Statistics';
 
 export function JobSeekerDashboard() {
   const { user } = useAuth();
-  const { profile, badges, notifications, applications, getJobMatches, companies: mockCompanies } = useMockData();
+  const { profile, badges, notifications, applications, getJobMatches, companies: mockCompanies, refresh, markNotificationAsRead } = useData();
   const [activeSection, setActiveSection] = useState('overview');
   const matches = getJobMatches();
+
+  // Fetch data when component mounts
+  useEffect(() => {
+    refresh.jobs();
+    refresh.companies();
+    refresh.applications();
+  }, []);
 
   const unreadNotifications = notifications.filter(n => !n.read);
 
@@ -75,22 +83,26 @@ export function JobSeekerDashboard() {
   const renderOverview = () => (
     <div className="space-y-6 animate-slide-up">
       {/* Welcome Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 via-accent/10 to-background border border-primary/20 p-8">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-white via-indigo-50/30 to-background border border-indigo-100/50 p-10 shadow-xl shadow-indigo-500/5 transition-all duration-500 dark:from-primary/20 dark:via-accent/10 dark:to-background dark:border-primary/20">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-primary/10 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2 animate-pulse" />
         <div className="relative z-10">
-          <h1 className="text-3xl font-bold mb-2">
+          <Badge className="mb-4 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
+            <Sparkles className="w-3 h-3 mr-1" />
+            AI Optimized Profile
+          </Badge>
+          <h1 className="text-4xl font-bold mb-3 tracking-tight">
             Welcome back, <span className="gradient-text">{user?.firstName}</span>! 👋
           </h1>
-          <p className="text-muted-foreground max-w-lg">
-            You have {applications.length} active applications and {matches.filter(m => m.compatibilityScore > 80).length} high-match jobs waiting for you.
+          <p className="text-muted-foreground max-w-lg text-lg leading-relaxed">
+            You have <span className="text-foreground font-semibold">{applications.length}</span> active applications and <span className="text-foreground font-semibold">{matches.filter(m => m.compatibilityScore > 80).length}</span> high-match jobs waiting for you.
           </p>
-          <div className="flex gap-3 mt-6">
-            <Button onClick={() => setActiveSection('jobs')}>
-              <Search className="w-4 h-4 mr-2" />
+          <div className="flex gap-4 mt-8">
+            <Button size="lg" onClick={() => setActiveSection('jobs')} className="rounded-xl shadow-lg shadow-primary/20 px-8 transition-transform hover:scale-105 active:scale-95">
+              <Search className="w-5 h-5 mr-2" />
               Find Jobs
             </Button>
-            <Button variant="outline" onClick={() => setActiveSection('cv')}>
-              <FileText className="w-4 h-4 mr-2" />
+            <Button size="lg" variant="outline" onClick={() => setActiveSection('cv')} className="rounded-xl glass-effect border-indigo-200/50 px-8 transition-transform hover:scale-105 active:scale-95">
+              <FileText className="w-5 h-5 mr-2" />
               Update CV
             </Button>
           </div>
@@ -352,6 +364,8 @@ export function JobSeekerDashboard() {
                   <div className="space-y-4">
                     {applications.map((app) => {
                       const job = matches.find(m => m.job.id === app.jobId)?.job;
+                      const company = mockCompanies.find(c => c.id === job?.companyId);
+                      const appliedDate = app.appliedAt ? new Date(app.appliedAt) : new Date();
                       return (
                         <div key={app.id} className="flex items-center justify-between p-4 rounded-lg border border-border/50">
                           <div className="flex items-center gap-4">
@@ -359,9 +373,9 @@ export function JobSeekerDashboard() {
                               <Briefcase className="w-5 h-5 text-muted-foreground" />
                             </div>
                             <div>
-                              <p className="font-medium">{job?.title}</p>
+                              <p className="font-medium">{job?.title || 'Job Title'}</p>
                               <p className="text-sm text-muted-foreground">
-                                Applied {app.appliedAt.toLocaleDateString()}
+                                {company?.name || 'Company'} • Applied {appliedDate.toLocaleDateString()}
                               </p>
                             </div>
                           </div>
@@ -377,26 +391,42 @@ export function JobSeekerDashboard() {
           {activeSection === 'notifications' && (
             <div className="animate-slide-up">
               <h2 className="text-2xl font-bold mb-6">Notifications</h2>
-              <Card>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    {notifications.map((notif) => (
-                      <div key={notif.id} className={`p-4 rounded-lg border ${notif.read ? 'border-border/50' : 'border-primary/30 bg-primary/5'}`}>
-                        <div className="flex items-start gap-3">
-                          <div className={`w-2 h-2 rounded-full mt-2 ${notif.read ? 'bg-muted' : 'bg-primary'}`} />
-                          <div>
-                            <p className="font-medium">{notif.title}</p>
-                            <p className="text-sm text-muted-foreground">{notif.message}</p>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {notif.createdAt.toLocaleDateString()}
-                            </p>
+              {notifications.length > 0 ? (
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      {notifications.map((notif) => (
+                        <div 
+                          key={notif.id} 
+                          className={`p-4 rounded-lg border cursor-pointer transition-colors ${notif.read ? 'border-border/50' : 'border-primary/30 bg-primary/5'}`}
+                          onClick={() => !notif.read && markNotificationAsRead(notif.id)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`w-2 h-2 rounded-full mt-2 ${notif.read ? 'bg-muted' : 'bg-primary'}`} />
+                            <div className="flex-1">
+                              <p className="font-medium">{notif.title}</p>
+                              <p className="text-sm text-muted-foreground">{notif.message}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(notif.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                            {!notif.read && (
+                              <Badge variant="default" className="text-xs">New</Badge>
+                            )}
                           </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <Bell className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No notifications yet</p>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           )}
           {activeSection === 'settings' && <Settings />}

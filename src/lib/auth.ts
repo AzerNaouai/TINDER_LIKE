@@ -265,6 +265,46 @@ export const getUserApplications = async (userId: string) => {
   }
 };
 
+export const createApplication = async (userId: string, jobId: string, coverLetter?: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/applications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, jobId, coverLetter }),
+    });
+    const data = await response.json();
+    return {
+      data: data.id ? { id: data.id } : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to create application'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const updateApplicationStatus = async (applicationId: string, status: string, notes?: string) => {
+  try {
+    const response = await fetch(`${API_BASE}/applications/${applicationId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, notes }),
+    });
+    const data = await response.json();
+    return {
+      data: response.ok ? data : null,
+      error: response.ok ? null : new Error(data.error || 'Failed to update application status'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
 // Profile management
 export const saveProfile = async (userId: string, profileData: any) => {
   try {
@@ -499,6 +539,22 @@ export const getUserEducation = async (userId: string) => {
     return {
       data: data.education || [],
       error: response.ok ? null : new Error(data.error || 'Failed to fetch education'),
+    };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error : new Error(String(error)),
+    };
+  }
+};
+
+export const getCompanies = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/companies`);
+    const data = await response.json();
+    return {
+      data: data.companies || [],
+      error: response.ok ? null : new Error(data.error || 'Failed to fetch companies'),
     };
   } catch (error) {
     return {

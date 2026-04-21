@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useMockData } from '@/hooks/useMockData';
+import { useData } from '@/hooks/useData';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -31,679 +31,470 @@ import {
   LineChart,
   BarChart,
   MapPin,
+  Heart,
+  Ban,
+  Rocket,
+  Brain,
 } from 'lucide-react';
 
 export function Statistics() {
   const { user } = useAuth();
-  const { profile, badges, applications, getJobMatches } = useMockData();
+  const { profile, badges = [], applications = [], getJobMatches, swipedJobs = [] } = useData();
   const [timeRange, setTimeRange] = useState('30d');
 
-  const matches = getJobMatches();
-  const highMatches = matches.filter(m => m.compatibilityScore >= 80);
+  const matches = useMemo(() => {
+    try {
+      return getJobMatches() || [];
+    } catch (e) {
+      console.error('Error getting job matches:', e);
+      return [];
+    }
+  }, [getJobMatches]);
   
-  // Calculate statistics
+  // Calculate dynamic statistics with safety defaults
   const totalApplications = applications.length;
-  const pendingApplications = applications.filter(a => ['new', 'shortlisted', 'testing'].includes(a.status)).length;
-  const interviewApplications = applications.filter(a => a.status === 'interview').length;
-  const rejectedApplications = applications.filter(a => a.status === 'rejected').length;
-  const hiredApplications = applications.filter(a => a.status === 'hired').length;
+  const pendingApplications = applications.filter(a => a && ['new', 'shortlisted', 'testing', 'applied'].includes(a.status)).length;
+  const interviewApplications = applications.filter(a => a && a.status === 'interview').length;
+  const rejectedApplications = applications.filter(a => a && a.status === 'rejected').length;
+  const hiredApplications = applications.filter(a => a && a.status === 'hired').length;
+  const offerApplications = applications.filter(a => a && a.status === 'offer').length;
   
   const applicationSuccessRate = totalApplications > 0 
-    ? Math.round(((interviewApplications + hiredApplications) / totalApplications) * 100) 
+    ? Math.round(((interviewApplications + hiredApplications + offerApplications) / totalApplications) * 100) 
     : 0;
 
-  // Mock weekly data for charts
-  const weeklyData = [
-    { day: 'Mon', profileViews: 12, applications: 1 },
-    { day: 'Tue', profileViews: 18, applications: 0 },
-    { day: 'Wed', profileViews: 25, applications: 2 },
-    { day: 'Thu', profileViews: 15, applications: 1 },
-    { day: 'Fri', profileViews: 32, applications: 3 },
-    { day: 'Sat', profileViews: 8, applications: 0 },
-    { day: 'Sun', profileViews: 10, applications: 1 },
-  ];
+  // Swiping analytics
+  const totalSwipes = swipedJobs.length;
+  const likedJobsCount = swipedJobs.filter(s => s && s.liked).length;
+  const passJobsCount = totalSwipes - likedJobsCount;
+  const likeRatio = totalSwipes > 0 ? Math.round((likedJobsCount / totalSwipes) * 100) : 0;
+  const passRatio = totalSwipes > 0 ? 100 - likeRatio : 0;
 
-  const skillProgress = profile.skills.slice(0, 6).map(skill => ({
-    name: skill.name,
-    proficiency: skill.proficiency,
-    category: skill.category,
-  }));
-
-  const badgeStats = {
+  const badgeStats = useMemo(() => ({
     total: badges.length,
     byLevel: {
-      bronze: badges.filter(b => b.level === 'bronze').length,
-      silver: badges.filter(b => b.level === 'silver').length,
-      gold: badges.filter(b => b.level === 'gold').length,
-      platinum: badges.filter(b => b.level === 'platinum').length,
-    },
-    byCategory: {
-      technical: badges.filter(b => b.category === 'Technical Skills').length,
-      soft: badges.filter(b => b.category === 'Soft Skills').length,
-      language: badges.filter(b => b.category === 'Language Proficiency').length,
-      aptitude: badges.filter(b => b.category === 'Aptitude').length,
+      bronze: badges.filter(b => b?.level === 'bronze').length,
+      silver: badges.filter(b => b?.level === 'silver').length,
+      gold: badges.filter(b => b?.level === 'gold').length,
+      platinum: badges.filter(b => b?.level === 'platinum').length,
     }
-  };
+  }), [badges]);
+
+  const skillProgress = useMemo(() => 
+    profile?.skills?.slice(0, 6).map(skill => ({
+      name: skill.name,
+      proficiency: skill.proficiency,
+      category: skill.category,
+    })) || [], 
+  [profile]);
+
+  // Use swipedJobs to find most liked industry
+  const topIndustry = useMemo(() => {
+    if (likedJobsCount === 0 || !matches.length) return 'Not yet determined';
+    try {
+      const likedIds = swipedJobs.filter(s => s?.liked).map(s => s.jobId);
+      const likedJobsFromMatches = matches.filter(m => m?.job?.id && likedIds.includes(m.job.id)).map(m => m.job);
+      
+      if (likedJobsFromMatches.length === 0) return 'Analyzing preferences...';
+
+      const industries: Record<string, number> = {};
+      likedJobsFromMatches.forEach(j => {
+        if (j?.industry) {
+          industries[j.industry] = (industries[j.industry] || 0) + 1;
+        }
+      });
+      
+      const sortedIndustries = Object.entries(industries).sort((a, b) => b[1] - a[1]);
+      return sortedIndustries[0]?.[0] || 'Technology';
+    } catch (e) {
+      console.error('Error calculating top industry:', e);
+      return 'Technology';
+    }
+  }, [likedJobsCount, swipedJobs, matches]);
 
   const getTrendIcon = (trend: 'up' | 'down' | 'neutral') => {
-    if (trend === 'up') return <ArrowUpRight className="w-4 h-4 text-green-500" />;
-    if (trend === 'down') return <ArrowDownRight className="w-4 h-4 text-red-500" />;
+    if (trend === 'up') return <ArrowUpRight className="w-4 h-4 text-emerald-500" />;
+    if (trend === 'down') return <ArrowDownRight className="w-4 h-4 text-rose-500" />;
     return null;
   };
 
+  // Safe color mapping helper
+  const getColorClasses = (tag: string) => {
+    const maps: Record<string, string> = {
+      primary: 'border-primary/20',
+      amber: 'border-amber-500/20',
+      sky: 'border-sky-500/20',
+      pink: 'border-pink-500/20',
+      emerald: 'border-emerald-500/20',
+    };
+    return maps[tag] || 'border-border';
+  };
+
   return (
-    <div className="animate-slide-up space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="animate-slide-up space-y-8 pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
-          <h2 className="text-2xl font-bold">Statistics</h2>
-          <p className="text-muted-foreground">Track your job search progress and performance</p>
+          <h2 className="text-3xl font-bold tracking-tight">Performance Analytics</h2>
+          <p className="text-muted-foreground mt-1 text-lg">Measure your career growth and discovery journey</p>
         </div>
-        <Tabs value={timeRange} onValueChange={setTimeRange}>
-          <TabsList>
-            <TabsTrigger value="7d">7 Days</TabsTrigger>
-            <TabsTrigger value="30d">30 Days</TabsTrigger>
-            <TabsTrigger value="90d">3 Months</TabsTrigger>
-            <TabsTrigger value="1y">1 Year</TabsTrigger>
+        <Tabs value={timeRange} onValueChange={setTimeRange} className="glass-effect p-1 rounded-xl border border-indigo-100/50 dark:border-white/5">
+          <TabsList className="bg-transparent border-none h-auto">
+            <TabsTrigger value="7d" className="rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all">7D</TabsTrigger>
+            <TabsTrigger value="30d" className="rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all">30D</TabsTrigger>
+            <TabsTrigger value="90d" className="rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all">3M</TabsTrigger>
+            <TabsTrigger value="1y" className="rounded-lg data-[state=active]:bg-primary/20 data-[state=active]:text-primary transition-all">1Y</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
 
-      {/* Overview Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="card-hover">
+      {/* Hero Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Card className="group relative overflow-hidden glass-card border-white/10 hover:border-primary/50 transition-all duration-500">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700" />
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Profile Views</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-3xl font-bold">127</p>
-                  {getTrendIcon('up')}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Total Discovery</p>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-3xl font-bold tracking-tighter">{totalSwipes}</h3>
+                  <span className="text-xs text-emerald-500 font-bold flex items-center">
+                    +12% {getTrendIcon('up')}
+                  </span>
                 </div>
-                <p className="text-xs text-green-500">+23% from last week</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Jobs Explored</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <Eye className="w-6 h-6 text-primary" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20 group-hover:rotate-12 transition-transform">
+                <Zap className="w-6 h-6 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="card-hover">
+        <Card className="group relative overflow-hidden glass-card border-white/10 hover:border-emerald-500/50 transition-all duration-500">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700" />
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Applications</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-3xl font-bold">{totalApplications}</p>
-                  {getTrendIcon('up')}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Match Success</p>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-3xl font-bold tracking-tighter">{applicationSuccessRate}%</h3>
+                  <span className="text-xs text-emerald-500 font-bold flex items-center">
+                    High {getTrendIcon('up')}
+                  </span>
                 </div>
-                <p className="text-xs text-green-500">+5 this week</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Interview Rate</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
-                <Briefcase className="w-6 h-6 text-blue-500" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 flex items-center justify-center border border-emerald-500/20 group-hover:rotate-12 transition-transform">
+                <Target className="w-6 h-6 text-emerald-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="card-hover">
+        <Card className="group relative overflow-hidden glass-card border-white/10 hover:border-amber-500/50 transition-all duration-500">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700" />
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Badges Earned</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-3xl font-bold">{badgeStats.total}</p>
-                  {getTrendIcon('up')}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Expertise Level</p>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-3xl font-bold tracking-tighter">{badgeStats.total}</h3>
+                  <span className="text-xs text-amber-500 font-bold">Rank 522</span>
                 </div>
-                <p className="text-xs text-green-500">+2 this month</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Badges Earned</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center">
-                <Award className="w-6 h-6 text-accent" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-500/5 flex items-center justify-center border border-amber-500/20 group-hover:rotate-12 transition-transform">
+                <Award className="w-6 h-6 text-amber-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="card-hover">
+        <Card className="group relative overflow-hidden glass-card border-white/10 hover:border-sky-500/50 transition-all duration-500">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-150 transition-transform duration-700" />
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Success Rate</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-3xl font-bold">{applicationSuccessRate}%</p>
-                  {getTrendIcon('neutral')}
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">Profile Status</p>
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-3xl font-bold tracking-tighter">Gold</h3>
+                  <span className="text-xs text-emerald-500 font-bold flex items-center">
+                    Elite {getTrendIcon('up')}
+                  </span>
                 </div>
-                <p className="text-xs text-muted-foreground">Interviews + Hires</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">Visibility Tier</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
-                <Target className="w-6 h-6 text-green-500" />
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-500/20 to-sky-500/5 flex items-center justify-center border border-sky-500/20 group-hover:rotate-12 transition-transform">
+                <Eye className="w-6 h-6 text-sky-500" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="activity" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 lg:w-auto">
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="applications">Applications</TabsTrigger>
-          <TabsTrigger value="skills">Skills</TabsTrigger>
-          <TabsTrigger value="badges">Badges</TabsTrigger>
-          <TabsTrigger value="matches">Job Matches</TabsTrigger>
+      <Tabs defaultValue="discovery" className="space-y-8">
+        <TabsList className="bg-card/50 p-1.5 rounded-2xl border border-white/5 lg:w-auto h-auto flex flex-wrap gap-1">
+          <TabsTrigger value="discovery" className="p-3 gap-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-all rounded-xl">
+            <Activity className="w-4 h-4" /> Discovery Loop
+          </TabsTrigger>
+          <TabsTrigger value="pipeline" className="p-3 gap-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-all rounded-xl">
+            <Rocket className="w-4 h-4" /> Hiring Pipeline
+          </TabsTrigger>
+          <TabsTrigger value="intel" className="p-3 gap-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-all rounded-xl">
+            <Brain className="w-4 h-4" /> Skill Intel
+          </TabsTrigger>
         </TabsList>
 
-        {/* Activity Tab */}
-        <TabsContent value="activity" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Weekly Activity Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" />
-                  Weekly Activity
-                </CardTitle>
-                <CardDescription>Profile views and applications over the past week</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {weeklyData.map((day, index) => (
-                    <div key={index} className="flex items-center gap-4">
-                      <span className="w-10 text-sm text-muted-foreground">{day.day}</span>
-                      <div className="flex-1 flex items-center gap-2">
-                        <div className="flex-1 h-8 bg-muted rounded-lg overflow-hidden flex">
-                          <div 
-                            className="h-full bg-primary/60 transition-all"
-                            style={{ width: `${(day.profileViews / 40) * 100}%` }}
-                          />
-                        </div>
-                        <span className="w-8 text-sm text-right">{day.profileViews}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-4 mt-4 pt-4 border-t">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded bg-primary/60" />
-                    <span className="text-sm text-muted-foreground">Profile Views</span>
+        <TabsContent value="discovery" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Swiping Trends */}
+            <Card className="lg:col-span-2 glass-card border-white/5 shadow-2xl overflow-hidden">
+              <CardHeader className="bg-white/5 border-b border-white/5 py-4 pb-4">
+                <CardTitle className="text-lg flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                    <TrendingUp className="w-4 h-4 text-primary" />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Activity Breakdown */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <PieChart className="w-5 h-5 text-primary" />
-                  Activity Breakdown
+                  Discovery Engagement
                 </CardTitle>
-                <CardDescription>How recruiters are interacting with your profile</CardDescription>
+                <CardDescription>Visualizing your swipe behavior over time</CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+              <CardContent className="p-8 pt-10">
+                <div className="flex items-end justify-between gap-6 h-64 mb-8">
                   {[
-                    { label: 'Profile Views', value: 127, total: 200, color: 'bg-primary' },
-                    { label: 'Job Applications', value: totalApplications, total: 20, color: 'bg-blue-500' },
-                    { label: 'Saved Jobs', value: 8, total: 20, color: 'bg-yellow-500' },
-                    { label: 'Messages Received', value: 3, total: 10, color: 'bg-green-500' },
-                    { label: 'Interview Requests', value: interviewApplications, total: 10, color: 'bg-accent' },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">{item.label}</span>
-                        <span className="text-sm font-medium">{item.value}</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full ${item.color} rounded-full`} style={{ width: `${(item.value / item.total) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg Response</p>
-                  <p className="font-semibold">3.2 days</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <ThumbsUp className="w-5 h-5 text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Profile Score</p>
-                  <p className="font-semibold">85/100</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Active Streak</p>
-                  <p className="font-semibold">12 days</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center">
-                  <Share2 className="w-5 h-5 text-accent" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Shares</p>
-                  <p className="font-semibold">5</p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        {/* Applications Tab */}
-        <TabsContent value="applications" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Application Funnel */}
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-primary" />
-                  Application Funnel
-                </CardTitle>
-                <CardDescription>Your journey through the hiring process</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {[
-                    { stage: 'Applications Submitted', count: totalApplications, color: 'bg-primary', icon: Briefcase },
-                    { stage: 'Under Review', count: pendingApplications, color: 'bg-yellow-500', icon: Clock },
-                    { stage: 'Interviews', count: interviewApplications, color: 'bg-accent', icon: Users },
-                    { stage: 'Offers', count: applications.filter(a => a.status === 'offer').length, color: 'bg-pink-500', icon: Bookmark },
-                    { stage: 'Hired', count: hiredApplications, color: 'bg-green-500', icon: CheckCircle },
-                  ].map((item, index, arr) => {
-                    const percentage = index === 0 ? 100 : Math.round((item.count / totalApplications) * 100) || 0;
-                    const Icon = item.icon;
-                    return (
-                      <div key={index} className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-lg ${item.color} bg-opacity-20 flex items-center justify-center`}>
-                          <Icon className={`w-5 h-5 ${item.color.replace('bg-', 'text-')}`} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between mb-1">
-                            <span className="text-sm font-medium">{item.stage}</span>
-                            <span className="text-sm">{item.count} ({percentage}%)</span>
-                          </div>
-                          <div className="h-3 bg-muted rounded-full overflow-hidden">
-                            <div className={`h-full ${item.color} rounded-full`} style={{ width: `${percentage}%` }} />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Application Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Status Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-yellow-500" />
-                      <span className="text-sm">Pending</span>
-                    </div>
-                    <Badge variant="secondary">{pendingApplications}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                    <div className="flex items-center gap-2">
-                      <Users className="w-4 h-4 text-accent" />
-                      <span className="text-sm">Interview</span>
-                    </div>
-                    <Badge variant="secondary">{interviewApplications}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                      <span className="text-sm">Hired</span>
-                    </div>
-                    <Badge variant="secondary">{hiredApplications}</Badge>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                    <div className="flex items-center gap-2">
-                      <XCircle className="w-4 h-4 text-red-500" />
-                      <span className="text-sm">Rejected</span>
-                    </div>
-                    <Badge variant="secondary">{rejectedApplications}</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Monthly Trend */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LineChart className="w-5 h-5 text-primary" />
-                Application Trends
-              </CardTitle>
-              <CardDescription>Applications submitted over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-end gap-2 h-48">
-                {[
-                  { month: 'Jan', applications: 2 },
-                  { month: 'Feb', applications: 4 },
-                  { month: 'Mar', applications: 3 },
-                  { month: 'Apr', applications: 5 },
-                  { month: 'May', applications: 7 },
-                  { month: 'Jun', applications: 6 },
-                ].map((data, i) => (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                    <div 
-                      className="w-full bg-primary/60 rounded-t-lg transition-all hover:bg-primary"
-                      style={{ height: `${(data.applications / 10) * 100}%` }}
-                    />
-                    <span className="text-xs text-muted-foreground">{data.month}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Skills Tab */}
-        <TabsContent value="skills" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Skill Proficiency */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart className="w-5 h-5 text-primary" />
-                  Skill Proficiency
-                </CardTitle>
-                <CardDescription>Your top skills by proficiency level</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {skillProgress.map((skill, i) => (
-                    <div key={i}>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">{skill.name}</span>
-                        <span className="text-sm text-muted-foreground">{skill.proficiency}%</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                    { label: 'Likes', count: likedJobsCount, ratio: likeRatio, color: 'bg-emerald-500', gradient: 'from-emerald-400 to-emerald-600', icon: Heart },
+                    { label: 'Passes', count: passJobsCount, ratio: passRatio, color: 'bg-rose-500', gradient: 'from-rose-400 to-rose-600', icon: Ban },
+                  ].map((stat, i) => (
+                    <div key={i} className="flex-1 flex flex-col items-center group">
+                      <div className="relative w-full flex-1 flex flex-col justify-end">
                         <div 
-                          className={`h-full rounded-full ${
-                            skill.proficiency >= 90 ? 'bg-green-500' :
-                            skill.proficiency >= 75 ? 'bg-blue-500' :
-                            skill.proficiency >= 60 ? 'bg-yellow-500' : 'bg-muted-foreground'
-                          }`}
-                          style={{ width: `${skill.proficiency}%` }}
-                        />
+                          className={`w-full bg-gradient-to-t ${stat.gradient} rounded-2xl shadow-xl dark:shadow-${stat.color.split('-')[1] || 'primary'}-500/20 group-hover:opacity-80 transition-all duration-500 flex flex-col items-center justify-center gap-2 overflow-hidden border border-white/20`}
+                          style={{ height: `${stat.ratio || 10}%`, minHeight: '100px' }}
+                        >
+                          <stat.icon className="w-8 h-8 text-white/40 animate-pulse" />
+                          <span className="text-3xl font-black text-white drop-shadow-md">{stat.ratio}%</span>
+                        </div>
+                      </div>
+                      <div className="mt-4 text-center">
+                        <p className="font-bold text-lg">{stat.label}</p>
+                        <p className="text-sm text-muted-foreground">{stat.count} Actions</p>
                       </div>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Skills by Category */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Skills by Category</CardTitle>
-                <CardDescription>Distribution of your skills</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { category: 'Technical Skills', count: profile.skills.filter(s => s.category === 'technical').length, color: 'bg-blue-500' },
-                    { category: 'Soft Skills', count: profile.skills.filter(s => s.category === 'soft').length, color: 'bg-green-500' },
-                    { category: 'Languages', count: profile.skills.filter(s => s.category === 'language').length, color: 'bg-purple-500' },
-                    { category: 'Industry Knowledge', count: profile.skills.filter(s => s.category === 'industry').length, color: 'bg-orange-500' },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                        <span className="text-sm">{item.category}</span>
-                      </div>
-                      <Badge variant="secondary">{item.count}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Skill Growth */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5 text-primary" />
-                Skill Growth
-              </CardTitle>
-              <CardDescription>New skills added over time</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <div className="text-center p-4 rounded-xl bg-muted flex-1">
-                  <p className="text-3xl font-bold text-primary">{profile.skills.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Skills</p>
-                </div>
-                <div className="text-center p-4 rounded-xl bg-muted flex-1">
-                  <p className="text-3xl font-bold text-green-500">+3</p>
-                  <p className="text-sm text-muted-foreground">This Month</p>
-                </div>
-                <div className="text-center p-4 rounded-xl bg-muted flex-1">
-                  <p className="text-3xl font-bold text-accent">85%</p>
-                  <p className="text-sm text-muted-foreground">Avg Proficiency</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Badges Tab */}
-        <TabsContent value="badges" className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="card-hover">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 rounded-full badge-platinum mx-auto flex items-center justify-center mb-3">
-                  <Award className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-3xl font-bold">{badgeStats.byLevel.platinum}</p>
-                <p className="text-sm text-muted-foreground">Platinum</p>
-              </CardContent>
-            </Card>
-            <Card className="card-hover">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 rounded-full badge-gold mx-auto flex items-center justify-center mb-3">
-                  <Award className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-3xl font-bold">{badgeStats.byLevel.gold}</p>
-                <p className="text-sm text-muted-foreground">Gold</p>
-              </CardContent>
-            </Card>
-            <Card className="card-hover">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 rounded-full badge-silver mx-auto flex items-center justify-center mb-3">
-                  <Award className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-3xl font-bold">{badgeStats.byLevel.silver}</p>
-                <p className="text-sm text-muted-foreground">Silver</p>
-              </CardContent>
-            </Card>
-            <Card className="card-hover">
-              <CardContent className="p-6 text-center">
-                <div className="w-16 h-16 rounded-full badge-bronze mx-auto flex items-center justify-center mb-3">
-                  <Award className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-3xl font-bold">{badgeStats.byLevel.bronze}</p>
-                <p className="text-sm text-muted-foreground">Bronze</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Badges by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { category: 'Technical Skills', count: badgeStats.byCategory.technical, icon: '💻' },
-                    { category: 'Soft Skills', count: badgeStats.byCategory.soft, icon: '🤝' },
-                    { category: 'Language Proficiency', count: badgeStats.byCategory.language, icon: '🌐' },
-                    { category: 'Aptitude', count: badgeStats.byCategory.aptitude, icon: '🧠' },
-                  ].map((item, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{item.icon}</span>
-                        <span className="text-sm">{item.category}</span>
-                      </div>
-                      <Badge variant="secondary">{item.count} badges</Badge>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 gap-4 p-4 rounded-2xl bg-white/5 border border-white/5">
+                   <div className="text-center border-r border-white/10">
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-1">Top Interest</p>
+                      <p className="font-bold">{topIndustry}</p>
+                   </div>
+                   <div className="text-center">
+                      <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest mb-1">Intent Score</p>
+                      <p className="font-bold text-primary">{Math.round((likedJobsCount / (totalSwipes || 1)) * 100)}%</p>
+                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Achievements</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {badges.slice(0, 4).map((badge) => (
-                    <div key={badge.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted">
-                      <div className={`w-10 h-10 rounded-lg ${
-                        badge.level === 'platinum' ? 'badge-platinum' :
-                        badge.level === 'gold' ? 'badge-gold' :
-                        badge.level === 'silver' ? 'badge-silver' : 'badge-bronze'
-                      } flex items-center justify-center`}>
-                        <Award className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{badge.name}</p>
-                        <p className="text-xs text-muted-foreground capitalize">{badge.level} • {badge.score}%</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {badge.earnedAt.toLocaleDateString()}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            {/* Quick Metrics */}
+            <div className="space-y-6">
+               <Card className="glass-card border-emerald-500/20 bg-emerald-500/5">
+                 <CardContent className="p-6 text-center space-y-4">
+                   <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto border border-emerald-500/20">
+                      <ThumbsUp className="w-8 h-8 text-emerald-500" />
+                   </div>
+                   <div>
+                      <h4 className="text-xl font-bold">85/100</h4>
+                      <p className="text-sm text-emerald-500 font-medium">Profile Resonance</p>
+                   </div>
+                   <p className="text-xs text-muted-foreground px-4">
+                     Your profile skills align with 85% of your liked job requirements.
+                   </p>
+                 </CardContent>
+               </Card>
+
+               <Card className="glass-card border-primary/20 bg-primary/5">
+                 <CardContent className="p-6 text-center space-y-4">
+                   <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mx-auto border border-primary/20">
+                      <Zap className="w-8 h-8 text-primary" />
+                   </div>
+                   <div>
+                      <h4 className="text-xl font-bold">12 Days</h4>
+                      <p className="text-sm text-primary font-medium">Activity Streak</p>
+                   </div>
+                   <div className="flex justify-center gap-1">
+                      {[1,1,1,1,1,0,0].map((d, i) => (
+                        <div key={i} className={`w-4 h-4 rounded-sm ${d ? 'bg-primary' : 'bg-white/10'}`} />
+                      ))}
+                   </div>
+                 </CardContent>
+               </Card>
+            </div>
           </div>
         </TabsContent>
 
-        {/* Job Matches Tab */}
-        <TabsContent value="matches" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="w-5 h-5 text-primary" />
-                  Match Quality Distribution
-                </CardTitle>
-                <CardDescription>How well jobs match your profile</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { range: 'Excellent (90-100%)', count: matches.filter(m => m.compatibilityScore >= 90).length, color: 'bg-green-500' },
-                    { range: 'Great (80-89%)', count: matches.filter(m => m.compatibilityScore >= 80 && m.compatibilityScore < 90).length, color: 'bg-blue-500' },
-                    { range: 'Good (70-79%)', count: matches.filter(m => m.compatibilityScore >= 70 && m.compatibilityScore < 80).length, color: 'bg-yellow-500' },
-                    { range: 'Fair (60-69%)', count: matches.filter(m => m.compatibilityScore >= 60 && m.compatibilityScore < 70).length, color: 'bg-orange-500' },
-                    { range: 'Low (<60%)', count: matches.filter(m => m.compatibilityScore < 60).length, color: 'bg-red-500' },
-                  ].map((item, i) => (
-                    <div key={i}>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">{item.range}</span>
-                        <span className="text-sm font-medium">{item.count} jobs</span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full ${item.color} rounded-full`} style={{ width: `${(item.count / matches.length) * 100}%` }} />
-                      </div>
+        <TabsContent value="pipeline" className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Funnel */}
+              <Card className="lg:col-span-2 glass-card border-white/5">
+                <CardHeader className="bg-white/5 border-b border-white/5 py-4">
+                  <CardTitle className="text-lg flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-pink-500" />
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                    Conversion Funnel
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-8">
+                  <div className="space-y-8">
+                    {[
+                      { stage: 'Applications Sent', count: totalApplications, color: 'bg-primary', icon: Briefcase, tag: 'primary' },
+                      { stage: 'Under Review', count: pendingApplications, color: 'bg-amber-500', icon: Clock, tag: 'amber' },
+                      { stage: 'Interviews Scheduled', count: interviewApplications, color: 'bg-sky-500', icon: Users, tag: 'sky' },
+                      { stage: 'Offers Extended', count: offerApplications, color: 'bg-pink-500', icon: Star, tag: 'pink' },
+                      { stage: 'Successful Hires', count: hiredApplications, color: 'bg-emerald-500', icon: CheckCircle, tag: 'emerald' },
+                    ].map((item, index) => {
+                      const percentage = totalApplications > 0 ? Math.round((item.count / totalApplications) * 100) : 0;
+                      return (
+                        <div key={index} className="flex items-center gap-6 group">
+                          <div className={`w-12 h-12 rounded-2xl ${item.color} bg-opacity-20 flex items-center justify-center border ${getColorClasses(item.tag)} group-hover:scale-110 transition-transform`}>
+                            <item.icon className="w-6 h-6" style={{ color: 'inherit' }} />
+                          </div>
+                          <div className="flex-1 space-y-2">
+                             <div className="flex justify-between items-end">
+                                <p className="font-bold">{item.stage}</p>
+                                <div className="text-right">
+                                   <p className="text-lg font-black">{item.count}</p>
+                                   <p className="text-[10px] text-muted-foreground font-bold">{percentage}% Yield</p>
+                                </div>
+                             </div>
+                             <div className="h-3 bg-white/5 rounded-full overflow-hidden p-[2px]">
+                                <div 
+                                  className={`h-full ${item.color} rounded-full relative`}
+                                  style={{ width: `${percentage || 2}%` }}
+                                >
+                                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 dark:via-white/20 to-transparent animate-shimmer" />
+                                </div>
+                             </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Match Summary</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="text-center p-4 rounded-xl bg-muted">
-                    <p className="text-4xl font-bold text-primary">{matches.length}</p>
-                    <p className="text-sm text-muted-foreground">Total Job Matches</p>
-                  </div>
-                  <div className="text-center p-4 rounded-xl bg-muted">
-                    <p className="text-4xl font-bold text-green-500">{highMatches.length}</p>
-                    <p className="text-sm text-muted-foreground">High Matches (80%+)</p>
-                  </div>
-                  <div className="text-center p-4 rounded-xl bg-muted">
-                    <p className="text-4xl font-bold text-accent">
-                      {matches.length > 0 ? Math.round(matches.reduce((acc, m) => acc + m.compatibilityScore, 0) / matches.length) : 0}%
-                    </p>
-                    <p className="text-sm text-muted-foreground">Average Match Score</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              {/* Status Breakdown */}
+              <div className="space-y-6">
+                <Card className="glass-card">
+                   <CardHeader>
+                     <CardTitle className="text-md">Success Distribution</CardTitle>
+                   </CardHeader>
+                   <CardContent className="p-4 pt-0">
+                      <div className="grid grid-cols-2 gap-4">
+                         <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center">
+                            <p className="text-2xl font-black text-emerald-500">{hiredApplications}</p>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Hired</p>
+                         </div>
+                         <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-center">
+                            <p className="text-2xl font-black text-rose-500">{rejectedApplications}</p>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Passed</p>
+                         </div>
+                         <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-center">
+                            <p className="text-2xl font-black text-amber-500">{pendingApplications}</p>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Live</p>
+                         </div>
+                         <div className="p-4 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-center">
+                            <p className="text-2xl font-black text-sky-500">{interviewApplications}</p>
+                            <p className="text-[10px] font-bold uppercase text-muted-foreground">Interview</p>
+                         </div>
+                      </div>
+                   </CardContent>
+                </Card>
 
-          {/* Top Matching Factors */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Your Strongest Matching Factors</CardTitle>
-              <CardDescription>What makes you a good match for jobs</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                {[
-                  { factor: 'Skills Match', score: Math.round(matches.reduce((acc, m) => acc + m.skillsMatch, 0) / matches.length) || 0, icon: Target },
-                  { factor: 'Experience', score: Math.round(matches.reduce((acc, m) => acc + m.experienceMatch, 0) / matches.length) || 0, icon: Briefcase },
-                  { factor: 'Location', score: Math.round(matches.reduce((acc, m) => acc + m.locationMatch, 0) / matches.length) || 0, icon: MapPin },
-                  { factor: 'Salary', score: Math.round(matches.reduce((acc, m) => acc + m.salaryMatch, 0) / matches.length) || 0, icon: '💰' },
-                  { factor: 'Industry', score: Math.round(matches.reduce((acc, m) => acc + m.industryMatch, 0) / matches.length) || 0, icon: '💼' },
-                ].map((item, i) => (
-                  <div key={i} className="text-center p-4 rounded-xl bg-muted">
-                    <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-2">
-                      {typeof item.icon === 'string' ? (
-                        <span className="text-2xl">{item.icon}</span>
-                      ) : (
-                        <item.icon className="w-6 h-6 text-primary" />
-                      )}
-                    </div>
-                    <p className="text-2xl font-bold">{item.score}%</p>
-                    <p className="text-xs text-muted-foreground">{item.factor}</p>
-                  </div>
-                ))}
+                <Card className="glass-card bg-primary/5 border-primary/20">
+                  <CardContent className="p-6">
+                     <p className="text-sm font-medium mb-4">Response Efficiency</p>
+                     <div className="flex items-center gap-4">
+                        <div className="flex-1 h-32 flex items-end gap-1">
+                           {[40, 70, 45, 90, 65, 80, 55].map((h, i) => (
+                             <div key={i} className="flex-1 bg-primary/40 rounded-sm" style={{ height: `${h}%` }} />
+                           ))}
+                        </div>
+                        <div className="w-20 text-center">
+                           <p className="text-3xl font-black">2.4</p>
+                           <p className="text-[10px] font-bold uppercase text-muted-foreground">Avg Days</p>
+                        </div>
+                     </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+           </div>
+        </TabsContent>
+
+        <TabsContent value="intel" className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <Card className="glass-card">
+                 <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-3">
+                       <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center font-bold text-emerald-500">
+                          !
+                       </div>
+                       Skill Mastery
+                    </CardTitle>
+                    <CardDescription>Real-time proficiency across core competencies</CardDescription>
+                 </CardHeader>
+                 <CardContent className="p-8 space-y-6">
+                    {skillProgress.map((skill, i) => (
+                      <div key={i} className="space-y-2">
+                        <div className="flex justify-between items-end">
+                           <span className="text-sm font-bold">{skill.name}</span>
+                           <span className="text-xs font-black text-primary">{skill.proficiency}%</span>
+                        </div>
+                        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                           <div 
+                             className={`h-full rounded-full bg-gradient-to-r ${
+                               skill.proficiency > 80 ? 'from-emerald-600 to-emerald-400' : 
+                               skill.proficiency > 60 ? 'from-primary to-accent' : 'from-amber-600 to-amber-400'
+                             }`}
+                             style={{ width: `${skill.proficiency}%` }}
+                           />
+                        </div>
+                      </div>
+                    ))}
+                 </CardContent>
+              </Card>
+
+              <Card className="glass-card">
+                 <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-3">
+                       <div className="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center">
+                          <Ban className="w-4 h-4 text-amber-500 rotate-12" />
+                       </div>
+                       Verified Credentials
+                    </CardTitle>
+                    <CardDescription>Active certifications and proof of work</CardDescription>
+                 </CardHeader>
+                 <CardContent className="p-8">
+                    <div className="grid grid-cols-2 gap-4 h-full">
+                       <div className="p-6 rounded-3xl bg-white/5 border border-white/5 flex flex-col items-center justify-center text-center">
+                          <p className="text-4xl font-black mb-2">{badgeStats.byLevel.platinum + badgeStats.byLevel.gold}</p>
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Expert Tier Badges</p>
+                       </div>
+                       <div className="p-6 rounded-3xl bg-white/5 border border-white/5 flex flex-col items-center justify-center text-center">
+                          <p className="text-4xl font-black mb-2">{badges.length}</p>
+                          <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Global Rep Score</p>
+                       </div>
+                    </div>
+                    <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20">
+                       <p className="text-sm font-medium mb-2 flex items-center gap-2">
+                         <Rocket className="w-4 h-4 text-primary" /> Skill Trend
+                       </p>
+                       <p className="text-xs text-muted-foreground">
+                         You've added 4 new technical certifications in the last quarter. You're in the top 5% of active learners in your sector.
+                       </p>
+                    </div>
+                 </CardContent>
+              </Card>
+           </div>
         </TabsContent>
       </Tabs>
     </div>

@@ -4,6 +4,41 @@
 
 :root {
   --radius: 0.625rem;
+  --background: 240 20% 99%;
+  --foreground: 240 10% 3.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 240 10% 3.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 240 10% 3.9%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 5.9% 94%;
+  --secondary-foreground: 240 5.9% 10%;
+  --muted: 240 5.9% 94%;
+  --muted-foreground: 240 3.8% 46.1%;
+  --accent: 262 83% 58%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 5.9% 92%;
+  --input: 240 5.9% 92%;
+  --ring: 239 84% 67%;
+  --chart-1: 239 84% 67%;
+  --chart-2: 262 83% 58%;
+  --chart-3: 330 81% 60%;
+  --chart-4: 38 92% 50%;
+  --chart-5: 160 84% 39%;
+  --sidebar-background: 240 20% 98%;
+  --sidebar-foreground: 240 5.3% 26.1%;
+  --sidebar-primary: 239 84% 67%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-accent-foreground: 240 5.9% 10%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 239 84% 67%;
+}
+
+.dark {
   --background: 240 10% 4%;
   --foreground: 210 40% 98%;
   --card: 240 10% 8%;
@@ -23,11 +58,6 @@
   --border: 240 10% 20%;
   --input: 240 10% 20%;
   --ring: 239 84% 67%;
-  --chart-1: 239 84% 67%;
-  --chart-2: 262 83% 58%;
-  --chart-3: 330 81% 60%;
-  --chart-4: 38 92% 50%;
-  --chart-5: 160 84% 39%;
   --sidebar-background: 240 10% 6%;
   --sidebar-foreground: 210 40% 98%;
   --sidebar-primary: 239 84% 67%;
@@ -73,11 +103,15 @@
   }
   
   .glass-effect {
-    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+    @apply bg-background/70 backdrop-blur-xl border border-border/50 shadow-sm;
+  }
+  
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-md border border-border/40 shadow-xl shadow-primary/5 dark:shadow-2xl dark:shadow-black/50;
   }
   
   .card-hover {
-    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/10;
+    @apply transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-primary/15;
   }
   
   .animate-float {
@@ -94,6 +128,10 @@
   
   .animate-fade-in {
     animation: fade-in 0.5s ease-out forwards;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite linear;
   }
 }
 
@@ -135,6 +173,15 @@
   }
 }
 
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -142,16 +189,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0a0f;
+  background: hsl(var(--background));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2e2e3e;
+  background: hsl(var(--muted));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #3e3e4e;
+  background: hsl(var(--border));
 }
 
 /* Badge colors */

@@ -444,11 +444,20 @@ app/
    - Session management
    - Demo login buttons
 
+✅ Real Job Data (NEW! 🎉)
+   - Automated job scraping from multiple sources
+   - Indeed, LinkedIn, Adzuna, Sprout integration
+   - Automatic updates every hour
+   - 10 global locations with rotation
+   - Stealth features to avoid detection
+   - PostgreSQL storage
+
 ✅ Job Matching (Tinder-style)
    - Like/Pass/Maybe actions
    - Match scoring
    - Mutual matches
    - Smart recommendations
+   - Real jobs from database
 
 ✅ Profile Management
    - Full profile builder
@@ -490,6 +499,56 @@ app/
 8. ✅ **API Documentation** (complete)
 9. ✅ **Setup Guide** (step-by-step)
 10. ✅ **Demo Accounts** (for testing)
+11. ✅ **Job Scraping Service** (NEW! 🎉)
+    - Automated scraping from 4+ sources
+    - Location rotation (10 global cities)
+    - Stealth features
+    - Scheduled updates
+    - Manual trigger option
+
+---
+
+## 🆕 Scraped Jobs Integration
+
+### Quick Start with Real Jobs
+
+```bash
+# 1. Verify everything is set up
+verify-setup.bat
+
+# 2. Trigger initial job scraping
+trigger-scrape.bat
+
+# 3. Start all services
+start-all.bat
+
+# 4. Open browser
+http://localhost:5173
+```
+
+### Services Running
+
+```
+Port 8000  → Backend API (PHP)
+Port 3001  → AI Service (Node.js)
+Port 3002  → Scraping Service (Node.js) 🆕
+Port 5173  → Frontend App (React)
+```
+
+### Documentation
+
+- `QUICK_START_SCRAPED_JOBS.md` - Get started in 5 minutes
+- `SCRAPED_JOBS_INTEGRATION.md` - Complete integration guide
+- `SCRAPED_JOBS_SUMMARY.md` - Summary of changes
+- `scraping/README.md` - Scraping service details
+
+### Job Sources
+
+- ✅ Indeed
+- ✅ LinkedIn
+- ✅ Adzuna
+- ✅ Sprout
+- 🔄 More coming soon...
 
 ---
 

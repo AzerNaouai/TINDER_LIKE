@@ -5,6 +5,9 @@ import { JobSeekerDashboard } from '@/sections/JobSeekerDashboard';
 import { CompanyDashboard } from '@/sections/CompanyDashboard';
 import { Button } from '@/components/ui/button';
 import { Briefcase, Building2, User } from 'lucide-react';
+import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useMockDataInternal, MockDataContext } from '@/hooks/useMockData';
 
 function RoleSwitcher() {
   const { user, switchRole, logout } = useAuth();
@@ -13,7 +16,8 @@ function RoleSwitcher() {
   if (!user) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50">
+    <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+      <ThemeToggle />
       <div className="relative">
         <Button
           variant="outline"
@@ -25,7 +29,7 @@ function RoleSwitcher() {
         </Button>
         
         {showMenu && (
-          <div className="absolute right-0 mt-2 w-56 rounded-xl glass-effect border border-white/10 overflow-hidden animate-fade-in">
+          <div className="absolute right-0 mt-2 w-56 rounded-xl glass-effect border border-white/10 overflow-hidden animate-fade-in shadow-2xl">
             <div className="p-2">
               <p className="text-xs text-muted-foreground px-3 py-2">Switch Role</p>
               <button
@@ -79,28 +83,36 @@ function AppContent() {
   }
 
   return (
-    <>
-      <RoleSwitcher />
-      {user?.role === 'jobseeker' ? <JobSeekerDashboard /> : <CompanyDashboard />}
-    </>
+    <div className="relative min-h-screen overflow-hidden bg-background transition-colors duration-500">
+      {/* Decorative Background Orbs */}
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary/5 dark:bg-primary/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-accent/5 dark:bg-accent/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30%] h-[30%] bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-[100px]" />
+      </div>
+
+      <div className="relative z-10">
+        <RoleSwitcher />
+        {user?.role === 'jobseeker' ? <JobSeekerDashboard /> : <CompanyDashboard />}
+      </div>
+    </div>
   );
 }
 
-import { useMockDataInternal, MockDataContext } from '@/hooks/useMockData';
-
 function MockDataProvider({ children }: { children: React.ReactNode }) {
+  // Ensure we are using the internal hook correctly
   const data = useMockDataInternal();
   return <MockDataContext.Provider value={data}>{children}</MockDataContext.Provider>;
 }
 
-function App() {
+export default function App() {
   return (
-    <MockDataProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </MockDataProvider>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} storageKey="jobmatch-theme">
+      <MockDataProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </MockDataProvider>
+    </ThemeProvider>
   );
 }
-
-export default App;

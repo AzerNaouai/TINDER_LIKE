@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useMockData } from '@/hooks/useMockData';
-import { saveProfile, addSkill, addExperience, addEducation } from '@/lib/auth';
+import { saveProfile, addSkill, addExperience, addEducation, deleteSkill, deleteExperience, deleteEducation, getUserSkills, getUserExperience, getUserEducation, getProfile } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -64,6 +64,75 @@ export function Settings() {
   const [showAddExperience, setShowAddExperience] = useState(false);
   const [showAddEducation, setShowAddEducation] = useState(false);
   const [editingSkill, setEditingSkill] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  // Backend data
+  const [skills, setSkills] = useState<any[]>([]);
+  const [experiences, setExperiences] = useState<any[]>([]);
+  const [educations, setEducations] = useState<any[]>([]);
+  const [newSkill, setNewSkill] = useState({ name: '', category: 'technical', proficiency: 50 });
+  const [newExperience, setNewExperience] = useState({
+    company: '', position: '', location: '', start_date: '', end_date: '', current: false, description: ''
+  });
+  const [newEducation, setNewEducation] = useState({
+    institution: '', degree: '', field_of_study: '', start_date: '', end_date: '', current: false, gpa: ''
+  });
+
+  // Load data from backend
+  useEffect(() => {
+    if (user?.id) {
+      loadProfileData();
+      loadSkills();
+      loadExperiences();
+      loadEducations();
+    }
+  }, [user?.id]);
+
+  const loadProfileData = async () => {
+    if (!user?.id) return;
+    const result = await getProfile(user.id);
+    if (result.data) {
+      const p = result.data;
+      setFormData({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        headline: p.headline || '',
+        summary: p.summary || '',
+        phone: p.phone || '',
+        linkedIn: p.linkedin || '',
+        portfolio: p.portfolio || '',
+        city: p.city || '',
+        region: p.region || '',
+        country: p.country || '',
+        remote: p.remote || false,
+        salaryMin: p.salary_min || 0,
+        salaryMax: p.salary_max || 150000,
+        currency: p.salary_currency || 'USD',
+        jobTypes: p.job_types || [],
+        industries: p.industries || [],
+        companySizes: p.company_sizes || [],
+      });
+    }
+  };
+
+  const loadSkills = async () => {
+    if (!user?.id) return;
+    const result = await getUserSkills(user.id);
+    if (result.data) setSkills(result.data);
+  };
+
+  const loadExperiences = async () => {
+    if (!user?.id) return;
+    const result = await getUserExperience(user.id);
+    if (result.data) setExperiences(result.data);
+  };
+
+  const loadEducations = async () => {
+    if (!user?.id) return;
+    const result = await getUserEducation(user.id);
+    if (result.data) setEducations(result.data);
+  };
 
   // Local state for form data
   const [formData, setFormData] = useState({
@@ -113,6 +182,7 @@ export function Settings() {
 
   const handleSave = async () => {
     if (!user?.id) return;
+    setLoading(true);
 
     const profileData = {
       headline: formData.headline,
@@ -126,18 +196,96 @@ export function Settings() {
       remote: formData.remote,
       salary_min: formData.salaryMin,
       salary_max: formData.salaryMax,
-      currency: formData.currency,
+      salary_currency: formData.currency,
       job_types: formData.jobTypes,
       industries: formData.industries,
       company_sizes: formData.companySizes,
     };
 
     const result = await saveProfile(user.id, profileData);
+    setLoading(false);
     if (result.error) {
       alert('Failed to save profile: ' + result.error.message);
     } else {
       setHasChanges(false);
       alert('Profile saved successfully!');
+    }
+  };
+
+  const handleAddSkill = async () => {
+    if (!user?.id || !newSkill.name) return;
+    setLoading(true);
+    const result = await addSkill(user.id, newSkill);
+    setLoading(false);
+    if (result.error) {
+      alert('Failed to add skill: ' + result.error.message);
+    } else {
+      setNewSkill({ name: '', category: 'technical', proficiency: 50 });
+      loadSkills();
+    }
+  };
+
+  const handleDeleteSkill = async (skillId: string) => {
+    if (!confirm('Delete this skill?')) return;
+    setLoading(true);
+    const result = await deleteSkill(skillId);
+    setLoading(false);
+    if (result.error) {
+      alert('Failed to delete skill: ' + result.error.message);
+    } else {
+      loadSkills();
+    }
+  };
+
+  const handleAddExperience = async () => {
+    if (!user?.id || !newExperience.company || !newExperience.position) return;
+    setLoading(true);
+    const result = await addExperience(user.id, newExperience);
+    setLoading(false);
+    if (result.error) {
+      alert('Failed to add experience: ' + result.error.message);
+    } else {
+      setNewExperience({ company: '', position: '', location: '', start_date: '', end_date: '', current: false, description: '' });
+      setShowAddExperience(false);
+      loadExperiences();
+    }
+  };
+
+  const handleDeleteExperience = async (expId: string) => {
+    if (!confirm('Delete this experience?')) return;
+    setLoading(true);
+    const result = await deleteExperience(expId);
+    setLoading(false);
+    if (result.error) {
+      alert('Failed to delete experience: ' + result.error.message);
+    } else {
+      loadExperiences();
+    }
+  };
+
+  const handleAddEducation = async () => {
+    if (!user?.id || !newEducation.institution || !newEducation.degree) return;
+    setLoading(true);
+    const result = await addEducation(user.id, newEducation);
+    setLoading(false);
+    if (result.error) {
+      alert('Failed to add education: ' + result.error.message);
+    } else {
+      setNewEducation({ institution: '', degree: '', field_of_study: '', start_date: '', end_date: '', current: false, gpa: '' });
+      setShowAddEducation(false);
+      loadEducations();
+    }
+  };
+
+  const handleDeleteEducation = async (eduId: string) => {
+    if (!confirm('Delete this education?')) return;
+    setLoading(true);
+    const result = await deleteEducation(eduId);
+    setLoading(false);
+    if (result.error) {
+      alert('Failed to delete education: ' + result.error.message);
+    } else {
+      loadEducations();
     }
   };
 
@@ -496,16 +644,16 @@ export function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold">Work Experience</h3>
-              <p className="text-sm text-muted-foreground">{profile.workExperience.length} positions added</p>
+              <p className="text-sm text-muted-foreground">{experiences.length} positions added</p>
             </div>
-            <Button onClick={() => setShowAddExperience(true)}>
+            <Button onClick={() => setShowAddExperience(true)} disabled={loading}>
               <Plus className="w-4 h-4 mr-2" />
               Add Experience
             </Button>
           </div>
 
           <div className="space-y-4">
-            {profile.workExperience.map((exp) => (
+            {experiences.map((exp) => (
               <Card key={exp.id}>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
@@ -518,27 +666,13 @@ export function Settings() {
                       </div>
                       <p className="text-muted-foreground">{exp.company}</p>
                       <p className="text-sm text-muted-foreground">
-                        {exp.startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} - 
-                        {exp.current ? 'Present' : exp.endDate?.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        {exp.start_date} - {exp.current ? 'Present' : exp.end_date}
                       </p>
                       <p className="text-sm text-muted-foreground">{exp.location}</p>
                       <p className="mt-2 text-sm">{exp.description}</p>
-                      {exp.achievements.length > 0 && (
-                        <ul className="mt-2 space-y-1">
-                          {exp.achievements.map((achievement, i) => (
-                            <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                              <CheckCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
-                              {achievement}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="icon">
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive">
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteExperience(exp.id)} disabled={loading}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -554,35 +688,31 @@ export function Settings() {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-semibold">Education</h3>
-              <p className="text-sm text-muted-foreground">{profile.education.length} degrees added</p>
+              <p className="text-sm text-muted-foreground">{educations.length} degrees added</p>
             </div>
-            <Button onClick={() => setShowAddEducation(true)}>
+            <Button onClick={() => setShowAddEducation(true)} disabled={loading}>
               <Plus className="w-4 h-4 mr-2" />
               Add Education
             </Button>
           </div>
 
           <div className="space-y-4">
-            {profile.education.map((edu) => (
+            {educations.map((edu) => (
               <Card key={edu.id}>
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <h4 className="font-semibold">{edu.degree} in {edu.fieldOfStudy}</h4>
+                      <h4 className="font-semibold">{edu.degree} {edu.field_of_study && `in ${edu.field_of_study}`}</h4>
                       <p className="text-muted-foreground">{edu.institution}</p>
                       <p className="text-sm text-muted-foreground">
-                        {edu.startDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })} - 
-                        {edu.current ? 'Present' : edu.endDate?.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                        {edu.start_date} - {edu.current ? 'Present' : edu.end_date}
                       </p>
                       {edu.gpa && (
                         <p className="text-sm text-muted-foreground mt-1">GPA: {edu.gpa}</p>
                       )}
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="ghost" size="icon">
-                        <Edit3 className="w-4 h-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="text-destructive">
+                      <Button variant="ghost" size="icon" onClick={() => handleDeleteEducation(edu.id)} disabled={loading}>
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -602,7 +732,7 @@ export function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2 mb-4">
-                {profile.skills.filter(s => s.category === 'technical').map((skill) => (
+                {skills.filter(s => s.category === 'technical').map((skill) => (
                   <div
                     key={skill.id}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted hover:bg-muted/80 transition-colors group"
@@ -620,15 +750,15 @@ export function Settings() {
                         />
                       ))}
                     </div>
-                    <button className="opacity-0 group-hover:opacity-100 text-destructive transition-opacity">
+                    <button className="opacity-0 group-hover:opacity-100 text-destructive transition-opacity" onClick={() => handleDeleteSkill(skill.id)} disabled={loading}>
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </div>
                 ))}
               </div>
               <div className="flex gap-2">
-                <Input placeholder="Add a technical skill..." className="max-w-xs" />
-                <Button>Add</Button>
+                <Input placeholder="Add a technical skill..." className="max-w-xs" value={newSkill.name} onChange={(e) => setNewSkill({...newSkill, name: e.target.value, category: 'technical'})} />
+                <Button onClick={handleAddSkill} disabled={loading || !newSkill.name}>Add</Button>
               </div>
             </CardContent>
           </Card>
@@ -640,18 +770,18 @@ export function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2 mb-4">
-                {profile.skills.filter(s => s.category === 'soft').map((skill) => (
+                {skills.filter(s => s.category === 'soft').map((skill) => (
                   <Badge key={skill.id} variant="secondary" className="px-3 py-2">
                     {skill.name}
-                    <button className="ml-2 text-muted-foreground hover:text-destructive">
+                    <button className="ml-2 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSkill(skill.id)} disabled={loading}>
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </Badge>
                 ))}
               </div>
               <div className="flex gap-2">
-                <Input placeholder="Add a soft skill..." className="max-w-xs" />
-                <Button>Add</Button>
+                <Input placeholder="Add a soft skill..." className="max-w-xs" value={newSkill.name} onChange={(e) => setNewSkill({...newSkill, name: e.target.value, category: 'soft'})} />
+                <Button onClick={handleAddSkill} disabled={loading || !newSkill.name}>Add</Button>
               </div>
             </CardContent>
           </Card>
@@ -663,19 +793,19 @@ export function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-2 mb-4">
-                {profile.skills.filter(s => s.category === 'language').map((skill) => (
+                {skills.filter(s => s.category === 'language').map((skill) => (
                   <Badge key={skill.id} variant="outline" className="px-3 py-2">
                     {skill.name}
                     <span className="ml-2 text-muted-foreground">{skill.proficiency}%</span>
-                    <button className="ml-2 text-muted-foreground hover:text-destructive">
+                    <button className="ml-2 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteSkill(skill.id)} disabled={loading}>
                       <Trash2 className="w-3 h-3" />
                     </button>
                   </Badge>
                 ))}
               </div>
               <div className="flex gap-2">
-                <Input placeholder="Add a language..." className="max-w-xs" />
-                <Button>Add</Button>
+                <Input placeholder="Add a language..." className="max-w-xs" value={newSkill.name} onChange={(e) => setNewSkill({...newSkill, name: e.target.value, category: 'language'})} />
+                <Button onClick={handleAddSkill} disabled={loading || !newSkill.name}>Add</Button>
               </div>
             </CardContent>
           </Card>
@@ -944,33 +1074,37 @@ export function Settings() {
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>Job Title</Label>
-              <Input placeholder="e.g., Senior Software Engineer" />
+              <Input placeholder="e.g., Senior Software Engineer" value={newExperience.position} onChange={(e) => setNewExperience({...newExperience, position: e.target.value})} />
             </div>
             <div className="space-y-2">
               <Label>Company</Label>
-              <Input placeholder="e.g., Google" />
+              <Input placeholder="e.g., Google" value={newExperience.company} onChange={(e) => setNewExperience({...newExperience, company: e.target.value})} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date</Label>
-                <Input type="month" />
+                <Input type="date" value={newExperience.start_date} onChange={(e) => setNewExperience({...newExperience, start_date: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>End Date</Label>
-                <Input type="month" />
+                <Input type="date" value={newExperience.end_date} onChange={(e) => setNewExperience({...newExperience, end_date: e.target.value})} disabled={newExperience.current} />
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={newExperience.current} onCheckedChange={(checked) => setNewExperience({...newExperience, current: checked})} />
+              <Label>I currently work here</Label>
             </div>
             <div className="space-y-2">
               <Label>Location</Label>
-              <Input placeholder="e.g., San Francisco, CA" />
+              <Input placeholder="e.g., San Francisco, CA" value={newExperience.location} onChange={(e) => setNewExperience({...newExperience, location: e.target.value})} />
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea placeholder="Describe your role and responsibilities..." rows={3} />
+              <Textarea placeholder="Describe your role and responsibilities..." rows={3} value={newExperience.description} onChange={(e) => setNewExperience({...newExperience, description: e.target.value})} />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddExperience(false)}>Cancel</Button>
-              <Button onClick={() => setShowAddExperience(false)}>Add Experience</Button>
+              <Button variant="outline" onClick={() => setShowAddExperience(false)} disabled={loading}>Cancel</Button>
+              <Button onClick={handleAddExperience} disabled={loading || !newExperience.company || !newExperience.position}>Add Experience</Button>
             </div>
           </div>
         </DialogContent>
@@ -986,29 +1120,37 @@ export function Settings() {
           <div className="space-y-4 mt-4">
             <div className="space-y-2">
               <Label>School/Institution</Label>
-              <Input placeholder="e.g., Stanford University" />
+              <Input placeholder="e.g., Stanford University" value={newEducation.institution} onChange={(e) => setNewEducation({...newEducation, institution: e.target.value})} />
             </div>
             <div className="space-y-2">
               <Label>Degree</Label>
-              <Input placeholder="e.g., Bachelor of Science" />
+              <Input placeholder="e.g., Bachelor of Science" value={newEducation.degree} onChange={(e) => setNewEducation({...newEducation, degree: e.target.value})} />
             </div>
             <div className="space-y-2">
               <Label>Field of Study</Label>
-              <Input placeholder="e.g., Computer Science" />
+              <Input placeholder="e.g., Computer Science" value={newEducation.field_of_study} onChange={(e) => setNewEducation({...newEducation, field_of_study: e.target.value})} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Start Date</Label>
-                <Input type="month" />
+                <Input type="date" value={newEducation.start_date} onChange={(e) => setNewEducation({...newEducation, start_date: e.target.value})} />
               </div>
               <div className="space-y-2">
                 <Label>End Date</Label>
-                <Input type="month" />
+                <Input type="date" value={newEducation.end_date} onChange={(e) => setNewEducation({...newEducation, end_date: e.target.value})} disabled={newEducation.current} />
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={newEducation.current} onCheckedChange={(checked) => setNewEducation({...newEducation, current: checked})} />
+              <Label>I currently study here</Label>
+            </div>
+            <div className="space-y-2">
+              <Label>GPA (optional)</Label>
+              <Input placeholder="e.g., 3.8" value={newEducation.gpa} onChange={(e) => setNewEducation({...newEducation, gpa: e.target.value})} />
+            </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddEducation(false)}>Cancel</Button>
-              <Button onClick={() => setShowAddEducation(false)}>Add Education</Button>
+              <Button variant="outline" onClick={() => setShowAddEducation(false)} disabled={loading}>Cancel</Button>
+              <Button onClick={handleAddEducation} disabled={loading || !newEducation.institution || !newEducation.degree}>Add Education</Button>
             </div>
           </div>
         </DialogContent>

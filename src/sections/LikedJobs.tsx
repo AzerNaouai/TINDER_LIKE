@@ -1,16 +1,23 @@
-import { useState } from 'react';
-import { useMockData } from '@/hooks/useMockData';
+import { useState, useEffect } from 'react';
+import { useData } from '@/hooks/useData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Heart, Building2, Star, CheckCircle, MapPin, Briefcase, DollarSign, Send, Info, Code, Bookmark } from 'lucide-react';
+import { Heart, Building2, Star, CheckCircle, MapPin, Briefcase, DollarSign, Send, Info, Code, Bookmark, X } from 'lucide-react';
 import { Job } from '@/types';
 
 export function LikedJobs() {
-  const { swipedJobs, getJobMatches, companies, applyToJob, applications } = useMockData();
+  const { swipedJobs, getJobMatches, companies, applyToJob, applications, refresh } = useData();
   const [showDetail, setShowDetail] = useState<Job | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Fetch jobs when component mounts
+  useEffect(() => {
+    refresh.jobs();
+    refresh.companies();
+    refresh.applications();
+  }, []);
 
   const matches = getJobMatches();
 
@@ -37,6 +44,9 @@ export function LikedJobs() {
   };
 
   const handleApply = async (jobId: string) => {
+    console.log('Applying to job:', jobId);
+    console.log('Current applications:', applications);
+    
     if (applications.some(app => app.jobId === jobId)) {
       showToast('You have already applied to this job.', 'error');
       return;
@@ -46,8 +56,12 @@ export function LikedJobs() {
     const job = jobMatch?.job;
     const company = job ? getCompany(job) : null;
     
+    console.log('Applying to:', job?.title, 'at', company?.name);
+    
     try {
       const { error } = await applyToJob(jobId);
+      console.log('Apply result - error:', error);
+      
       if (error) {
         showToast('Failed to submit application. Please try again.', 'error');
       } else {
@@ -56,8 +70,11 @@ export function LikedJobs() {
           : 'Application submitted successfully! ✓';
         showToast(msg, 'success');
         setShowDetail(null);
+        // Refresh applications
+        refresh.applications();
       }
     } catch (err) {
+      console.error('Apply error:', err);
       showToast('An unexpected error occurred. Please try again.', 'error');
     }
   };
@@ -98,8 +115,9 @@ export function LikedJobs() {
             const swipedInfo = swipedJobs.find(s => s.jobId === job.id);
 
             return (
-              <Card key={job.id} className="card-hover">
-                <CardContent className="p-5">
+              <Card key={job.id} className="glass-card card-hover overflow-hidden relative group">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2 group-hover:scale-110 transition-transform duration-700" />
+                <CardContent className="p-5 relative z-10">
                   <div className="flex items-start gap-4">
                     <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
                       {company?.logo ? (
@@ -125,13 +143,13 @@ export function LikedJobs() {
                       </div>
 
                       <p className="text-sm text-muted-foreground mb-2">
-                        {company?.name} • {job.location.remote ? 'Remote' : job.location.city}
+                        {company?.name} • {job.location?.remote ? 'Remote' : (job.location?.city || 'Location TBD')}
                       </p>
 
                       <div className="flex flex-wrap gap-2 mb-3">
-                        {job.skills.slice(0, 4).map((skill, i) => (
+                        {(Array.isArray(job.skills) ? job.skills : []).slice(0, 4).map((skill, i) => (
                           <span key={i} className="text-xs px-2 py-1 rounded-full bg-muted">
-                            {skill}
+                            {String(skill)}
                           </span>
                         ))}
                       </div>
@@ -165,14 +183,17 @@ export function LikedJobs() {
           })}
         </div>
       ) : (
-        <div className="text-center py-20">
-          <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center mx-auto mb-6">
-            <Heart className="w-12 h-12 text-muted-foreground" />
+        <div className="text-center py-24 glass-card border-dashed border-2 border-indigo-100/50 dark:border-white/5 rounded-[2.5rem]">
+          <div className="w-24 h-24 rounded-3xl bg-indigo-50 dark:bg-white/5 flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-500/5 animate-float">
+            <Heart className="w-12 h-12 text-primary" />
           </div>
-          <h3 className="text-xl font-semibold mb-2">No matches yet</h3>
-          <p className="text-muted-foreground mb-6">
-            Start swiping in Discover to add jobs here.
+          <h3 className="text-2xl font-bold mb-2">No liked jobs yet</h3>
+          <p className="text-muted-foreground mb-8 max-w-sm mx-auto text-lg leading-relaxed">
+            Start swiping in Discover to build your wishlist and find your perfect match.
           </p>
+          <Button size="lg" onClick={() => window.dispatchEvent(new CustomEvent('switch-tab', { detail: 'jobs' }))} className="rounded-xl px-10">
+            Start Discovering
+          </Button>
         </div>
       )}
 
@@ -189,7 +210,7 @@ export function LikedJobs() {
                   <div>
                     <DialogTitle className="text-2xl">{showDetail.title}</DialogTitle>
                     <DialogDescription className="text-lg">
-                      {getCompany(showDetail).name} • {showDetail.location.city || 'Remote'}
+                      {getCompany(showDetail).name} • {showDetail.location?.city || 'Remote'}
                     </DialogDescription>
                   </div>
                 </div>
@@ -201,7 +222,7 @@ export function LikedJobs() {
                     <Briefcase className="w-4 h-4 mr-2" />
                     {showDetail.type.replace('-', ' ')}
                   </Badge>
-                  {showDetail.location.remote && (
+                  {showDetail.location?.remote && (
                     <Badge variant="secondary">
                       <MapPin className="w-4 h-4 mr-2" />
                       Remote
@@ -217,16 +238,22 @@ export function LikedJobs() {
 
                 <div>
                   <h4 className="font-semibold mb-2">About the Role</h4>
-                  <p className="text-muted-foreground">{showDetail.description}</p>
+                  <p className="text-muted-foreground">{(() => {
+                    let desc = showDetail.description || '';
+                    desc = desc.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+                    desc = desc.replace(/\{[^}]*\}/g, '');
+                    desc = desc.replace(/\s+/g, ' ').trim();
+                    return desc;
+                  })()}</p>
                 </div>
 
                 <div>
                   <h4 className="font-semibold mb-2">Requirements</h4>
                   <ul className="space-y-2">
-                    {showDetail.requirements.map((req, i) => (
+                    {(Array.isArray(showDetail.requirements) ? showDetail.requirements : []).map((req, i) => (
                       <li key={i} className="flex items-start gap-2 text-muted-foreground">
                         <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                        {req}
+                        {String(req)}
                       </li>
                     ))}
                   </ul>
@@ -235,10 +262,10 @@ export function LikedJobs() {
                 <div>
                   <h4 className="font-semibold mb-2">Responsibilities</h4>
                   <ul className="space-y-2">
-                    {showDetail.responsibilities.map((resp, i) => (
+                    {(Array.isArray(showDetail.responsibilities) ? showDetail.responsibilities : []).map((resp, i) => (
                       <li key={i} className="flex items-start gap-2 text-muted-foreground">
                         <CheckCircle className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
-                        {resp}
+                        {String(resp)}
                       </li>
                     ))}
                   </ul>
@@ -247,10 +274,10 @@ export function LikedJobs() {
                 <div>
                   <h4 className="font-semibold mb-2">Required Skills</h4>
                   <div className="flex flex-wrap gap-2">
-                    {showDetail.skills.map((skill, i) => (
+                    {(Array.isArray(showDetail.skills) ? showDetail.skills : []).map((skill, i) => (
                       <Badge key={i} variant="secondary">
                         <Code className="w-3 h-3 mr-1" />
-                        {skill}
+                        {String(skill)}
                       </Badge>
                     ))}
                   </div>

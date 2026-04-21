@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
 import { useMockData } from '@/hooks/useMockData';
+import { getProfile, getUserSkills, getUserExperience, getUserEducation } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -34,18 +36,109 @@ import {
   Monitor,
 } from 'lucide-react';
 
+const AI_SERVICE_URL = import.meta.env.VITE_AI_SERVICE_URL || 'http://localhost:3001';
+
 const templates = [
-  { id: 'modern', name: 'Modern Professional', preview: 'modern', color: 'from-blue-500 to-indigo-600', icon: Monitor },
-  { id: 'classic', name: 'Classic Elegant', preview: 'classic', color: 'from-slate-600 to-slate-800', icon: Type },
-  { id: 'creative', name: 'Creative Bold', preview: 'creative', color: 'from-purple-500 to-pink-600', icon: Palette },
-  { id: 'minimal', name: 'Minimal Clean', preview: 'minimal', color: 'from-emerald-500 to-teal-600', icon: Layout },
+  { id: 'professional', name: 'Professional', preview: 'professional', color: 'from-slate-600 via-slate-700 to-slate-900', icon: Type },
+  { id: 'modern', name: 'Modern', preview: 'modern', color: 'from-indigo-500 via-purple-500 to-pink-500', icon: Monitor },
+  { id: 'minimal', name: 'Minimal', preview: 'minimal', color: 'from-emerald-400 via-teal-500 to-cyan-600', icon: Layout },
 ];
 
 export function CVGenerator() {
+  const { user } = useAuth();
   const { profile, badges, cvTemplates } = useMockData();
-  const [selectedTemplate, setSelectedTemplate] = useState('modern');
+  const [selectedTemplate, setSelectedTemplate] = useState('professional');
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState('templates');
+  const [loading, setLoading] = useState(false);
+  const [generatedCV, setGeneratedCV] = useState<string | null>(null);
+  const [profileData, setProfileData] = useState<any>(null);
+  const [skills, setSkills] = useState<any[]>([]);
+  const [experience, setExperience] = useState<any[]>([]);
+  const [education, setEducation] = useState<any[]>([]);
+  const [jobTitle, setJobTitle] = useState('');
+
+  // Load user data
+  useEffect(() => {
+    if (user?.id) {
+      loadUserData();
+    }
+  }, [user?.id]);
+
+  const loadUserData = async () => {
+    if (!user?.id) return;
+    
+    const [profileRes, skillsRes, expRes, eduRes] = await Promise.all([
+      getProfile(user.id),
+      getUserSkills(user.id),
+      getUserExperience(user.id),
+      getUserEducation(user.id)
+    ]);
+
+    if (profileRes.data) setProfileData(profileRes.data);
+    if (skillsRes.data) setSkills(skillsRes.data);
+    if (expRes.data) setExperience(expRes.data);
+    if (eduRes.data) setEducation(eduRes.data);
+  };
+
+  const handleGenerateCV = async () => {
+    if (!user) {
+      alert('Please login to generate CV');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${AI_SERVICE_URL}/api/generate-cv`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: {
+            first_name: user.firstName,
+            last_name: user.lastName,
+            email: user.email,
+            ...profileData
+          },
+          skills,
+          experience,
+          education,
+          jobTitle: jobTitle || profileData?.headline,
+          template: selectedTemplate
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setGeneratedCV(data.cv);
+        setShowPreview(true);
+      } else {
+        alert('Failed to generate CV: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error generating CV:', error);
+      alert('Failed to generate CV. Make sure the AI service is running.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!generatedCV) {
+      alert('Please generate CV first');
+      return;
+    }
+
+    // Create a new window with the CV content
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(generatedCV);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+      }, 250);
+    }
+  };
 
   const getBadgeClass = (level: string) => {
     switch (level) {
@@ -216,12 +309,16 @@ export function CVGenerator() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">CV Generator</h2>
-          <p className="text-muted-foreground">Create professional, ATS-optimized resumes</p>
+          <p className="text-muted-foreground">Create professional, AI-powered resumes</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleGenerateCV} disabled={loading}>
+            <Sparkles className="w-4 h-4 mr-2" />
+            {loading ? 'Generating...' : 'Generate with AI'}
+          </Button>
           <Dialog open={showPreview} onOpenChange={setShowPreview}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" disabled={!generatedCV}>
                 <Eye className="w-4 h-4 mr-2" />
                 Preview
               </Button>
@@ -230,10 +327,14 @@ export function CVGenerator() {
               <DialogHeader>
                 <DialogTitle>CV Preview</DialogTitle>
               </DialogHeader>
-              {renderCVPreview()}
+              {generatedCV ? (
+                <div dangerouslySetInnerHTML={{ __html: generatedCV }} />
+              ) : (
+                renderCVPreview()
+              )}
             </DialogContent>
           </Dialog>
-          <Button>
+          <Button onClick={handleDownloadPDF} disabled={!generatedCV}>
             <Download className="w-4 h-4 mr-2" />
             Export PDF
           </Button>
@@ -241,10 +342,16 @@ export function CVGenerator() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3 lg:w-auto">
-          <TabsTrigger value="templates">Templates</TabsTrigger>
-          <TabsTrigger value="content">Content</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+        <TabsList className="bg-card/50 p-1.5 rounded-2xl border border-indigo-100/50 dark:border-white/5 lg:w-auto h-auto flex flex-wrap gap-1">
+          <TabsTrigger value="templates" className="p-3 gap-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-all rounded-xl">
+            <Layout className="w-4 h-4" /> Design
+          </TabsTrigger>
+          <TabsTrigger value="content" className="p-3 gap-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-all rounded-xl">
+            <FileText className="w-4 h-4" /> Content
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="p-3 gap-2 data-[state=active]:bg-primary data-[state=active]:text-white transition-all rounded-xl">
+            <Palette className="w-4 h-4" /> Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="templates" className="space-y-6">
@@ -254,13 +361,14 @@ export function CVGenerator() {
               return (
                 <Card
                   key={template.id}
-                  className={`cursor-pointer transition-all ${
+                  className={`cursor-pointer transition-all duration-500 glass-card relative overflow-hidden group ${
                     selectedTemplate === template.id
-                      ? 'ring-2 ring-primary border-primary'
+                      ? 'ring-2 ring-primary border-primary shadow-primary/20'
                       : 'hover:border-primary/50'
                   }`}
                   onClick={() => setSelectedTemplate(template.id)}
                 >
+                  <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${template.color} opacity-5 group-hover:opacity-10 rounded-full -translate-y-1/2 translate-x-1/2 transition-opacity`} />
                   <CardContent className="p-6">
                     <div className="flex items-start gap-4">
                       <div className={`w-16 h-20 rounded-lg bg-gradient-to-br ${template.color} flex items-center justify-center shadow-lg`}>
